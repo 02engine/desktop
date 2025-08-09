@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Update Available</title>
+    <meta name="robots" content="noindex">
+    <meta charset="utf-8">
+    <noscript><meta http-equiv="Refresh" content="0; url=https://desktop.turbowarp.org/"></noscript>
+    <style>
+      @media (prefers-color-scheme: dark) {
+        :root {
+          background: #171717;
+          color-scheme: dark;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      function redirectRelease () {
+        location.replace('/' + location.search);
+      }
+
+      function redirectBeta () {
+        location.replace('https://github.com/TurboWarp/desktop/releases');
+      }
+
+      try {
+        var params = new URLSearchParams(location.search);
+        if (params.has('to') && params.get('to').includes('-')) {
+          redirectBeta();
+        } else {
+          redirectRelease();
+        }
+      } catch (e) {
+        redirectRelease();
+      }
+    </script>
+  </body>
+</html>

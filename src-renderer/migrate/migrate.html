@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html>
+  <html>
+    <meta charset="utf8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src file:; frame-src tw-editor: tw-packager:">
+    <style>
+      :root {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        background-color: #333;
+        color: #eee;
+      }
+
+      a {
+        color: #4af;
+      }
+      iframe {
+        /* just to make sure the window frame runs, keep it "visible" */
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      h1, p {
+        margin: 0;
+      }
+      main {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .steps {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .step {
+        display: flex;
+        flex-direction: row;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      .step-icon {
+        width: 1.5rem;
+        height: 1.5rem;
+        flex-shrink: 0;
+      }
+      .step-icon[data-type="loading"] {
+        background-color: currentColor;
+        -webkit-mask-repeat: no-repeat;
+        -webkit-mask-size: cover;
+        -webkit-mask-image: url("./loading.svg");
+        animation-name: spin;
+        animation-duration: 1s;
+        animation-iteration-count: infinite;
+        animation-timing-function: linear;
+      }
+      .step-icon[data-type="error"] {
+        background-image: url("./error.svg");
+        background-size: contain;
+        background-repeat: no-repeat;
+      }
+      .step-icon[data-type="success"] {
+        background-image: url("./check.svg");
+        background-size: contain;
+        background-repeat: no-repeat;
+      }
+      .error {
+        font-family: monospace;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .error-next-steps, .timed-out-next-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        font-weight: bold;
+      }
+      .continue-anyways {
+        cursor: pointer;
+        font: inherit;
+        color: inherit;
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        background-color: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        font-weight: bold;
+        width: 100%;
+      }
+      .continue-anyways:disabled {
+        opacity: 0.8;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </html>
+  <body>
+    <main>
+      <h1 class="title"></h1>
+      <p class="description"></p>
+
+      <div class="error-next-steps" hidden>
+        <p>
+          <span class="error-message"></span>
+          <a href="mailto:contact@turbowarp.org">contact@turbowarp.org</a>
+        </p>
+        <button class="continue-anyways"></button>
+      </div>
+
+      <div class="timed-out-next-steps" hidden>
+        <p>
+          <span class="timed-out-message"></span>
+          <a href="mailto:contact@turbowarp.org">contact@turbowarp.org</a>
+        </p>
+        <button class="continue-anyways"></button>
+      </div>
+
+      <div class="steps"></div>
+    </main>
+
+    <script>
+      /*
+      Local Storage:
+      twd:audio_id -> abandon (IDs differ across origins)
+      twd:video_id -> abandon (IDs differ across origins)
+      tw:theme -> tw-editor
+      tw:addons -> tw-editor
+      tw:language -> tw-editor
+      tw:username -> tw-editor
+      extensions.turbowarp.org/local-storage: -> tw-editor
+      SelectProject.type -> tw-packager
+      SelectProject.id -> tw-packager
+      PackagerOptions.* -> tw-packager
+      P4.locale -> tw-packager
+      P4.theme -> tw-packager
+
+      IndexedDB:
+      p4-local-settings -> tw-packager
+      p4-large-assets -> abandon
+      TW_Backpack -> tw-editor
+      TW_AutoSave -> abandon (likely to be very large)
+      */
+
+      const {oldDataVersion, strings, locale} = MigratePreload.getInfo();
+      document.documentElement.lang = locale;
+
+      document.querySelector('.title').textContent = strings['migrate.title'];
+      document.querySelector('.description').textContent = strings['migrate.description'];
+      document.querySelector('.error-message').textContent = strings['migrate.error'];
+      document.querySelector('.timed-out-message').textContent = strings['migrate.timed-out'];
+
+      const stepsElement = document.querySelector('.steps');
+      const errorNextStepsElement = document.querySelector('.error-next-steps');
+      const timedOutNextStepsElement = document.querySelector('.timed-out-next-steps');
+
+      for (const button of document.querySelectorAll('.continue-anyways')) {
+        button.textContent = strings['migrate.continue-anyways'];
+        button.addEventListener('click', (e) => {
+          e.target.disabled = true;
+          continueAnyways();
+        });
+      }
+
+      let databases = [];
+      const gatherMetadata = async () => {
+        databases = await indexedDB.databases();
+      };
+
+      const openDatabase = (databaseName, databaseVersion) => new Promise((resolve, reject) => {
+        if (!databases.find((i) => i.name === databaseName && i.version === databaseVersion)) {
+          return resolve(null);
+        }
+
+        const request = indexedDB.open(databaseName, databaseVersion);
+        request.onerror = () => {
+          reject(new Error(`Failed to open: ${request.error}`));
+        };
+        request.onsuccess = () => {
+          resolve(request.result);
+        };
+      });
+
+      const getAllKeys = (database, storeName) => new Promise((resolve, reject) => {
+        const transaction = database.transaction(storeName, 'readonly');
+        transaction.onerror = () => {
+          reject(new Error(`Transaction error: ${transaction.error}`));
+        };
+
+        const objectStore = transaction.objectStore(storeName);
+        const request = objectStore.getAllKeys();
+        request.onsuccess = async () => {
+          resolve(request.result);
+        };
+      });
+
+      const readAsArrayBuffer = (blob) => new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = () => reject(new Error(`Failed to read blob: ${fr.error}`));
+        fr.readAsArrayBuffer(blob);
+      });
+
+      const readByKey = (database, storeName, key) => new Promise((resolve, reject) => {
+        const transaction = database.transaction(storeName, 'readonly');
+        transaction.onerror = () => {
+          reject(new Error(`Transaction error: ${transaction.error}`));
+        };
+
+        const objectStore = transaction.objectStore(storeName);
+        const request = objectStore.get(key);
+        request.onsuccess = async () => {
+          try {
+            const result = request.result;
+            if (result === null || typeof result !== 'object') {
+              throw new Error(`IDB ${key} returned non-object: ${result}`);
+            }
+
+            const transfer = [];
+
+            for (const [key, value] of Object.entries(result)) {
+              // Attempt zero-copy transfer for binary data
+              if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+                transfer.push(value);
+              }
+
+              // We can't send Blobs over postMessage, so read them out as buffers
+              if (value instanceof Blob) {
+                const buffer = await readAsArrayBuffer(value);
+                result[key] = buffer;
+                transfer.push(buffer);
+              }
+            }
+
+            resolve({
+              result,
+              transfer
+            });
+          } catch (e) {
+            reject(e);
+          }
+        };
+      });
+
+      const migrateEditor = async () => {
+        const storage = {};
+        for (const key of Object.keys(localStorage)) {
+          if (key === 'tw:theme' || key === 'tw:addons' || key === 'tw:language' || key === 'tw:username' || key.startsWith('extensions.turbowarp.org/local-storage:')) {
+            storage[key] = localStorage[key];
+          }
+        }
+
+        const backpackDB = await openDatabase('TW_Backpack', 1);
+        const backpackKeys = backpackDB ? await getAllKeys(backpackDB, 'backpack') : [];
+
+        let transferredBackpackItems = 0;
+        setStepProgress(0, backpackKeys.length);
+
+        return new Promise((resolve, reject) => {
+          const CHILD_ORIGIN = 'tw-editor://.';
+
+          window.onmessage = async (e) => {
+            try {
+              if (e.origin !== CHILD_ORIGIN) {
+                return;
+              }
+
+              const type = e.data.type;
+              if (type === 'start') {
+                e.source.postMessage({
+                  storage,
+                  backpackKeys
+                }, CHILD_ORIGIN);
+              } else if (type === 'backpack') {
+                const read = await readByKey(backpackDB, 'backpack', e.data.key);
+                e.source.postMessage({
+                  backpackData: read.result
+                }, CHILD_ORIGIN, read.transfer);
+                setStepProgress(++transferredBackpackItems, backpackKeys.length);
+              } else if (type === 'error') {
+                reject(e.data.error);
+              } else if (type === 'done') {
+                if (backpackDB) {
+                  backpackDB.close();
+                }
+                resolve();
+              }
+            } catch (e) {
+              reject(e);
+            }
+          };
+
+          const iframe = document.createElement('iframe');
+          iframe.src = 'tw-editor://./gui/migrate-helper.html';
+          document.body.appendChild(iframe);
+        });
+      };
+
+      const migratePackager = async () => {
+        const storage = {};
+        for (const key of Object.keys(localStorage)) {
+          if (key.startsWith('SelectProject') || key.startsWith('PackagerOptions') || key === 'P4.locale' || key === 'P4.theme') {
+            storage[key] = localStorage[key];
+          }
+        }
+
+        const blobDB = await openDatabase('p4-local-settings', 1);
+        const blobKeys = blobDB ? await getAllKeys(blobDB, 'blobs') : [];
+
+        let transferredBlobs = 0;
+        setStepProgress(0, blobKeys.length);
+
+        return new Promise((resolve, reject) => {
+          const CHILD_ORIGIN = 'tw-packager://.';
+
+          window.onmessage = async (e) => {
+            try {
+              if (e.origin !== CHILD_ORIGIN) {
+                return;
+              }
+
+              const type = e.data.type;
+              if (type === 'start') {
+                e.source.postMessage({
+                  storage,
+                  blobKeys
+                }, CHILD_ORIGIN);
+              } else if (type === 'blob') {
+                const read = await readByKey(blobDB, 'blobs', e.data.key);
+                e.source.postMessage({
+                  blobData: read.result
+                }, CHILD_ORIGIN, read.transfer);
+                setStepProgress(++transferredBlobs, blobKeys.length);
+              } else if (type === 'error') {
+                reject(e.data.error);
+              } else if (type === 'done') {
+                if (blobDB) {
+                  blobDB.close();
+                }
+                resolve();
+              }
+            } catch (e) {
+              reject(e);
+            }
+          };
+
+          const iframe = document.createElement('iframe');
+          iframe.src = 'tw-packager://./migrate-helper.html';
+          document.body.appendChild(iframe);
+        });
+      };
+
+      const deleteDatabase = (databaseName) => new Promise((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(databaseName);
+        request.onerror = () => {
+          reject(new Error(`Failed to delete IDB database ${databaseName}: ${request.error}`));
+        };
+        request.onsuccess = () => {
+          resolve();
+        };
+      });
+
+      const deleteLegacyData = async () => {
+        localStorage.clear();
+        sessionStorage.clear();
+
+        for (let i = 0; i < databases.length; i++) {
+          await deleteDatabase(databases[i].name);
+
+          // i starts from 0, so add 1 for the database we just deleted
+          setStepProgress(i + 1, databases.length);
+
+          // Give the browser some time to clean up; deleting large databases might be intensive
+          await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+      };
+
+      const finish = async () => {
+        await MigratePreload.done();
+      };
+
+      const continueAnyways = async () => {
+        await MigratePreload.continueAnyways();
+      };
+
+      let anyError = false;
+      let progressTarget = null;
+
+      const setStepProgress = async (completed, total) => {
+        if (progressTarget && total > 0) {
+          progressTarget.textContent = ` (${completed}/${total})`;
+        }
+      };
+
+      const runStep = async (name, callback) => {
+        const stepElement = document.createElement('div');
+        stepElement.className = 'step';
+
+        const iconElement = document.createElement('div');
+        iconElement.className = 'step-icon';
+        iconElement.dataset.type = 'loading';
+        stepElement.appendChild(iconElement);
+
+        const textElement = document.createElement('div');
+        textElement.textContent = name;
+        stepElement.appendChild(textElement);
+
+        const progressElement = document.createElement('div');
+        stepElement.appendChild(progressElement);
+        progressTarget = progressElement;
+
+        stepsElement.appendChild(stepElement);
+
+        await new Promise(resolve => setTimeout(resolve, 250));
+
+        try {
+          await callback();
+          iconElement.dataset.type = 'success';
+        } catch (error) {
+          console.error(error);
+          iconElement.dataset.type = 'error';
+
+          anyError = true;
+
+          const errorElement = document.createElement('div');
+          errorElement.className = 'error';
+          errorElement.textContent = error;
+          stepsElement.appendChild(errorElement);
+        }
+
+        progressTarget = null;
+      };
+
+      const migrate = async () => {
+        const timeoutId = setTimeout(() => {
+          timedOutNextStepsElement.hidden = false;
+        }, 12 * 1000);
+
+        await runStep(strings['migrate.preparing'], gatherMetadata);
+
+        if (!anyError && oldDataVersion < 2) {
+          // V2: Migrate data from file:// to tw-*://
+          // Preparing must succeed for both of these, but each can fail independently.
+          await runStep(strings['migrate.transfer-editor'], migrateEditor);
+          await runStep(strings['migrate.transfer-packager'], migratePackager);
+        }
+
+        if (!anyError && oldDataVersion < 3) {
+          // V3: Removing leftover data on file://
+          await runStep(strings['migrate.delete-legacy'], deleteLegacyData);
+        }
+
+        if (!anyError) {
+          await runStep(strings['migrate.finalizing'], finish);
+        }
+
+        if (anyError) {
+          clearTimeout(timeoutId);
+          timedOutNextStepsElement.hidden = true;
+          errorNextStepsElement.hidden = false;
+        }
+      };
+
+      migrate();
+    </script>
+  </body>
+</html>

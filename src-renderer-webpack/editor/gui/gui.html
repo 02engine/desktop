@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <!-- Unfortunately can't really enforce a CSP due to custom extensions -->
+    <style>
+      .splash-screen {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        color: white;
+      }
+      .splash-screen[hidden],
+      .tw-loaded .splash-screen {
+        display: none;
+      }
+      .splash-screen[data-theme="dark"] {
+        background-color: #333;
+        color: white;
+      }
+      .splash-spinner:after {
+        content: " ";
+        display: block;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        border: 6px solid;
+        border-color: currentColor transparent currentColor transparent;
+        animation: splash-spinner 1.2s linear infinite;
+      }
+      @keyframes splash-spinner {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="splash-screen" id="spash-waiting-for-js" hidden>
+      <div class="splash-spinner"></div>
+    </div>
+
+    <script>
+      (function() {
+        var theme = '';
+        var accent = '#00BAAD';
+
+        try {
+          var themeSetting = localStorage.getItem('tw:theme');
+        } catch (e) {
+          // ignore
+        }
+        if (themeSetting === 'light') {
+          theme = 'light';
+        } else if (themeSetting === 'dark') {
+          theme = 'dark';
+        } else if (themeSetting) {
+          try {
+            var parsed = JSON.parse(themeSetting);
+            if (parsed.accent === 'purple') {
+              accent = '#855cd6';
+            } else if (parsed.accent === 'blue') {
+              accent = '#4c97ff';
+            }
+            if (parsed.gui === 'dark' || parsed.gui === 'light') {
+              theme = parsed.gui;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+
+        var splash = document.getElementById('spash-waiting-for-js');
+        splash.setAttribute('data-theme', theme);
+        if (theme !== 'dark') {
+          splash.style.backgroundColor = accent;
+        }
+        splash.hidden = false;
+      })();
+    </script>
+
+    <div id="app"></div>
+
+    <script>
+      function webpackScriptError(event) {
+        alert(`Error loading webpack script: ${event.target.src}`);
+      }
+    </script>
+    <script src="index.js" onerror="webpackScriptError(event)"></script>
+  </body>
+</html>

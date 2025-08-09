@@ -1,0 +1,201 @@
+{
+  "name": "02Engine",
+  "description": "Better Scratch.Based on Turbowarp.",
+  "version": "1.0.0",
+  "license": "GPL-3.0",
+  "author": {
+    "email": "ericmu20101103@163.com",
+    "name": "02Studio"
+  },
+  "scripts": {
+    "fetch": "node scripts/download-library-files.js && node scripts/download-packager.js && node scripts/prepare-extensions.js",
+    "webpack:compile": "webpack",
+    "webpack:watch": "webpack --watch",
+    "webpack:prod": "cross-env NODE_ENV=production webpack",
+    "electron:start": "electron src-main/entrypoint.js",
+    "electron:package:dir": "electron-builder --dir"
+  },
+  "dependencies": {
+    "semver": "^7.7.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.0",
+    "@babel/preset-env": "^7.12.16",
+    "@babel/preset-react": "^7.13.13",
+    "@electron/fuses": "^1.7.0",
+    "@turbowarp/extensions": "github:TurboWarp/extensions#master",
+    "adm-zip": "^0.5.16",
+    "autoprefixer": "^9.8.8",
+    "babel-loader": "^8.4.1",
+    "copy-webpack-plugin": "^6.4.1",
+    "cross-env": "^7.0.3",
+    "css-loader": "^1.0.1",
+    "electron": "^37.2.4",
+    "electron-builder": "^26.0.19",
+    "file-loader": "^6.2.0",
+    "postcss": "^8.4.13",
+    "postcss-import": "^14.0.0",
+    "postcss-loader": "^4.2.0",
+    "postcss-simple-vars": "^6.0.3",
+    "scratch-gui": "git+https://github.com/TurboWarp/scratch-gui.git#develop",
+    "style-loader": "^0.23.0",
+    "url-loader": "^4.1.1",
+    "webpack": "4.47.0",
+    "webpack-cli": "^4.10.0"
+  },
+  "overrides": {
+    "webpack@4.47.0": {
+      "terser-webpack-plugin": "^4.2.3"
+    }
+  },
+  "homepage": "https://desktop.turbowarp.org/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TurboWarp/desktop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TurboWarp/desktop/issues",
+    "email": "contact@turbowarp.org"
+  },
+  "main": "./src-main/entrypoint.js",
+  "build": {
+    "appId": "02Studio.02Engine.desktop",
+    "productName": "02Engine",
+    "files": [
+      "node_modules/**/*",
+      "src-main/**/*",
+      "src-preload/**/*",
+      "src-renderer/**/*",
+      "dist-renderer-webpack/**/*",
+      "dist-library-files/**/*",
+      "dist-extensions/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "art/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "art/icon.svg",
+        "to": "icon.svg"
+      }
+    ],
+    "win": {
+      "artifactName": "${productName} Portable ${version} ${arch}.${ext}",
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": "x64"
+        },
+        {
+          "target": "portable",
+          "arch": "x64"
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "deleteAppDataOnUninstall": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "icon": "build/icon.icns",
+      "category": "public.app-category.education",
+      "darkModeSupport": true,
+      "gatekeeperAssess": false,
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSMultipleInstancesProhibited": true,
+        "NSCameraUsageDescription": "This app requires camera access when using the video sensing blocks.",
+        "NSMicrophoneUsageDescription": "This app requires microphone access when recording sounds or detecting loudness."
+      },
+      "target": [
+        {
+          "arch": "universal",
+          "target": "dmg"
+        }
+      ]
+    },
+    "mas": {
+      "hardenedRuntime": false,
+      "entitlements": "build/entitlements.mas.plist",
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist",
+      "provisioningProfile": "build/distribution.provisionprofile"
+    },
+    "masDev": {
+      "type": "development",
+      "provisioningProfile": "build/development.provisionprofile"
+    },
+    "linux": {
+      "artifactName": "${productName}-${os}-${arch}-${version}.${ext}",
+      "icon": "./build/",
+      "synopsis": "Mod of Scratch with a compiler and more features.",
+      "description": "02Engine.Better Scratch.Made from Turbowarp.",
+      "category": "Development",
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "02Engine-desktop",
+          "Keywords": "scratch;"
+        }
+      },
+      "extraFiles": [
+        "linux-files"
+      ],
+      "target": [
+        {
+          "target": "deb"
+        },
+        {
+          "target": "appimage"
+        },
+        {
+          "target": "tar.gz"
+        }
+      ]
+    },
+    "snap": {
+      "summary": "02Engine.Better Scratch.Made from Turbowarp.",
+      "allowNativeWayland": true,
+      "plugs": [
+        "default",
+        "camera",
+        "audio-record",
+        "joystick",
+        "removable-media"
+      ]
+    },
+    "appImage": {
+      "license": null
+    },
+    "fileAssociations": [
+      {
+        "ext": "sb3",
+        "name": "Scratch 3 Project",
+        "description": "Scratch 3 Project",
+        "role": "Editor",
+        "mimeType": "application/x.scratch.sb3"
+      },
+      {
+        "ext": "sb2",
+        "name": "Scratch 2 Project",
+        "description": "Scratch 2 Project",
+        "role": "Editor",
+        "mimeType": "application/x.scratch.sb2"
+      },
+      {
+        "ext": "sb",
+        "name": "Scratch 1 Project",
+        "description": "Scratch 1 Project",
+        "role": "Editor",
+        "mimeType": "application/x.scratch.sb"
+      }
+    ]
+  },
+  "private": true
+}
