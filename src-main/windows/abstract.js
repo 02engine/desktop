@@ -170,7 +170,7 @@ class AbstractWindow {
     options.useContentSize = true;
     options.minWidth = 200;
     options.minHeight = 200;
-
+    options.icon = path.resolve(__dirname, '../../art/icon.png');
     // Child classes are expected to show the window on their own
     options.show = false;
 

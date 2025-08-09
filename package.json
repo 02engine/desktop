@@ -51,11 +51,11 @@
   "homepage": "https://desktop.turbowarp.org/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/TurboWarp/desktop.git"
+    "url": "https://github.com/02engine/desktop.git"
   },
   "bugs": {
-    "url": "https://github.com/TurboWarp/desktop/issues",
-    "email": "contact@turbowarp.org"
+    "url": "https://github.com/02engine/desktop/issues",
+    "email": "ericmu20101103@163.com"
   },
   "main": "./src-main/entrypoint.js",
   "build": {
