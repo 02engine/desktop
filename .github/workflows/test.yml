@@ -6,13 +6,25 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-      steps:
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
           persist-credentials: false
-      - name: test
-        run: file modules.tar
 
-
+      - name: Verify modules.tar format
+        run: |
+          if [ -f "modules.tar" ]; then
+            echo "modules.tar found, checking format..."
+            file modules.tar
+            if file modules.tar | grep -q "tar archive"; then
+              echo "modules.tar is a valid tar archive"
+            else
+              echo "Error: modules.tar is not a valid tar archive"
+              exit 1
+            fi
+          else
+            echo "Error: modules.tar not found in the repository"
+            exit 1
+          fi
