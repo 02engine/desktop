@@ -52,7 +52,7 @@ jobs:
       with:
         node-version: 22
     - name: Install dependencies
-      run: node setup.js
+      run: node setup-mac.js
     - name: Fetch
       run: npm run fetch
     - name: Compile
