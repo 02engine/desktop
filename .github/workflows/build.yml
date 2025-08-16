@@ -38,36 +38,6 @@ jobs:
           dist/*.tar.gz
           dist/*.AppImage
 
-  build-mac:
-    runs-on: macos-latest
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22
-    - name: Install dependencies
-      run: node setup-mac.js
-    - name: Fetch
-      run: npm run fetch
-    - name: Compile
-      run: npm run webpack:prod
-    - name: Package
-      run: |
-        node release-automation/build.js --mac --universal
-        node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
-    - name: Print file tree
-      run: node scripts/print-file-tree.js dist
-    - name: Upload artifacts to GitHub Actions
-      uses: actions/upload-artifact@v4
-      with:
-        name: mac
-        path: dist/*.dmg
-
   build-windows:
     # GitHub's Windows runners have a C: drive and a D: drive.
     # C: is for the OS and has good read performance but awful write performance.
