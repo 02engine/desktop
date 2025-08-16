@@ -27,7 +27,7 @@
     "adm-zip": "^0.5.16",
     "autoprefixer": "^9.8.8",
     "babel-loader": "^8.4.1",
-    "copy-webpack-plugin": "^6.4.1",
+    "copy-webpack-plugin": "^13.0.1",
     "cross-env": "^7.0.3",
     "css-loader": "^1.0.1",
     "electron": "^37.2.4",
