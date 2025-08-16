@@ -4,7 +4,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 // 定义下载 URL 和目标路径
-const tarUrl = 'https://huggingface.co/datasets/Deep-sea/02engine_modules/resolve/main/modules.tar?download=true';
+const tarUrl = 'https://huggingface.co/datasets/02engine/02engine_modules/resolve/main/modules.tar?download=true';
 const tarFile = path.join(__dirname, 'modules.tar');
 const extractPath = './'; // 解压到当前目录
 
