@@ -64,6 +64,13 @@ async function main() {
     console.log(`开始解压: ${tarFile}`);
     execSync(`tar -xf ${tarFile} -C ${extractPath}`, { stdio: 'inherit' });
     console.log(`文件已解压至: ${extractPath}`);
+
+    // 列出解压目录中的内容
+    console.log('当前目录内容：');
+    const files = fs.readdirSync(extractPath);
+    files.forEach((file, index) => {
+      console.log(`  ${index + 1}. ${file}`);
+    });
   } catch (err) {
     console.error(`错误: ${err.message}`);
     process.exit(1);
