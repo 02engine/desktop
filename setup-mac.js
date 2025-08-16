@@ -4,9 +4,9 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 // 定义下载 URL 和目标路径
-const tarUrl = 'https://huggingface.co/datasets/02engine/02engine_modules/resolve/main/modules.tar?download=true';
+const tarUrl = 'https://huggingface.co/datasets/Deep-sea/02engine_modules/resolve/main/modules.tar?download=true';
 const tarFile = path.join(__dirname, 'modules.tar');
-const extractPath = './'; // 解压到当前目录
+const extractPath = './';
 
 // 下载文件，支持重定向
 function downloadFile(url, dest, redirects = 0, maxRedirects = 10) {
@@ -39,7 +39,7 @@ function downloadFile(url, dest, redirects = 0, maxRedirects = 10) {
         resolve();
       });
     }).on('error', (err) => {
-      fs.unlink(dest, () => reject(err)); // 删除部分下载的文件
+      fs.unlink(dest, () => reject(err));
     });
   });
 }
@@ -86,17 +86,21 @@ try {
         console.log('成功将 modules.tar 解压到 ./');
       }
 
-      // 清理下载的文件（可选）
+      // 清理下载的文件
       fs.unlinkSync(tarFile);
       console.log('已删除临时文件 modules.tar');
 
-      // 安装 dmg-license npm 包
-      console.log('正在安装 dmg-license npm 包...');
+      // 清理 npm 缓存以避免 EINTEGRITY 错误
+      console.log('正在清理 npm 缓存...');
+      execSync('npm cache clean --force', { stdio: 'inherit', env });
+
+      // 安装 dmg-license@1.0.11，不修改 package.json 或 package-lock.json
+      console.log('正在安装 dmg-license@1.0.11 npm 包到 node_modules...');
       try {
-        execSync('npm install dmg-license', { stdio: 'inherit', env });
-        console.log('成功安装 dmg-license');
+        execSync('npm install dmg-license@1.0.11 --no-save --registry=https://registry.npmjs.org', { stdio: 'inherit', env });
+        console.log('成功安装 dmg-license@1.0.11 到 node_modules');
       } catch (err) {
-        console.error('安装 dmg-license 失败：', err.message);
+        console.error('安装 dmg-license@1.0.11 失败：', err.message);
         process.exit(1);
       }
     })
