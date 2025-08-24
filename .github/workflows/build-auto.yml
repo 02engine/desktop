@@ -53,6 +53,9 @@ jobs:
         node-version: 22
     - name: Install dependencies
       run: node setupmac.js
+    - name: Print file tree
+      run: node scripts/print-file-tree.js dist
+
     - name: Fetch
       run: npm run fetch
     - name: Compile
