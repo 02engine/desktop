@@ -20,7 +20,7 @@ jobs:
       with:
         node-version: 22
     - name: Install dependencies
-      run: node setup.js
+      run: npm ci --loglevel=info
     - name: Fetch
       run: npm run fetch
     - name: Compile
@@ -52,7 +52,7 @@ jobs:
       with:
         node-version: 22
     - name: Install dependencies
-      run: npm ci
+      run: npm ci --loglevel=info
     - name: Fetch
       run: npm run fetch
     - name: Compile
@@ -104,7 +104,7 @@ jobs:
         npm config set prefix D:\npm-prefix
     - name: Install dependencies
       working-directory: D:\repo
-      run: node setup.js
+      run: npm ci --loglevel=info
     - name: Fetch
       working-directory: D:\repo
       run: npm run fetch
