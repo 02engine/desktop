@@ -52,9 +52,7 @@ jobs:
       with:
         node-version: 22
     - name: Install dependencies
-      run: node setupmac.js
-    - name: offline install
-      run: npm install --offline
+      run: npm ci
     - name: Fetch
       run: npm run fetch
     - name: Compile
