@@ -4,39 +4,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
-    - name: Install strip-nondeterminism
-      run: sudo apt-get install strip-nondeterminism
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22
-    - name: Install dependencies
-      run: node setup.js
-    - name: Fetch
-      run: npm run fetch
-    - name: Compile
-      run: npm run webpack:prod
-    - name: Package
-      run: |
-        node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
+        node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
     - name: Print file tree
       run: node scripts/print-file-tree.js dist
     - name: Upload artifacts to GitHub Actions
       uses: actions/upload-artifact@v4
       with:
-        name: linux
-        path: |
-          dist/*.deb
-          dist/*.tar.gz
-          dist/*.AppImage
+        name: mac
+        path: dist/*.dmg
+
 
   build-windows:
     # GitHub's Windows runners have a C: drive and a D: drive.
@@ -72,7 +48,7 @@ jobs:
         npm config set prefix D:\npm-prefix
     - name: Install dependencies
       working-directory: D:\repo
-      run: node setup.js
+      run: npm ci --loglevel=info
     - name: Fetch
       working-directory: D:\repo
       run: npm run fetch
