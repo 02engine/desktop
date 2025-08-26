@@ -48,7 +48,7 @@ jobs:
       uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
       with:
         file: dist/*.deb;dist/*.tar.gz;dist/*.AppImage
-        draft: true
+        draft: false
 
   release-mac:
     runs-on: macos-latest
@@ -83,7 +83,7 @@ jobs:
       uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
       with:
         file: dist/*.dmg
-        draft: true
+        draft: false
 
 
 
@@ -146,4 +146,4 @@ jobs:
       uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
       with:
         file: D:\repo\dist\*.exe
-        draft: true
+        draft: false
