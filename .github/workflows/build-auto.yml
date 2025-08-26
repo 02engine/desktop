@@ -18,6 +18,8 @@ jobs:
       with:
         node-version: 22
         cache: npm
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
     - name: Install dependencies
       run: npm ci
     - name: Prepare extensions
