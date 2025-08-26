@@ -141,38 +141,6 @@ jobs:
       with:
         name: windows-unsigned
         path: D:\repo\dist\*.exe
-    - name: Upload Microsoft Store artifact to GitHub Actions
-      uses: actions/upload-artifact@v4
-      with:
-        name: appx
-        path: D:\repo\dist\*.appx
-    - name: Upload unsigned artifacts for SignPath
-      uses: actions/upload-artifact@v4
-      id: signpath-unsigned
-      with:
-        name: artifact-for-signpath
-        # keep this list in sync with the signed artifiact upload below
-        path: |
-          D:\repo\dist\TurboWarp-Setup*x64.exe
-    - name: Sign executables with SignPath
-      uses: signpath/github-action-submit-signing-request@4f13d373e8f0cd8d3c0465ff4877feff27aed2ae
-      with:
-        api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-        organization-id: 04444052-261e-46eb-8168-ed0eee93c57c
-        project-slug: desktop_
-        signing-policy-slug: release-signing
-        github-artifact-id: ${{ steps.signpath-unsigned.outputs.artifact-id }}
-        artifact-configuration-slug: sign_installers
-        wait-for-completion: true
-        # overwrite the unsigned files
-        output-artifact-directory: D:\repo\dist
-    - name: Upload signed artifacts to GitHub Actions
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-signed
-        # keep this list in sync with the signpath artifact upload above
-        path: |
-          D:\repo\dist\TurboWarp-Setup*x64.exe
     - name: Upload signed artifacts to tag
       uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
       with:
