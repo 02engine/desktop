@@ -52,6 +52,8 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
     - name: Install dependencies
       run: npm ci --loglevel=info
     - name: Fetch
@@ -103,6 +105,8 @@ jobs:
       run: |
         npm config set cache D:\npm-cache
         npm config set prefix D:\npm-prefix
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
     - name: Install dependencies
       working-directory: D:\repo
       run: npm ci --loglevel=info
