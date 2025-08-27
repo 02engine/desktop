@@ -21,7 +21,7 @@ jobs:
     - name: Clean cache
       run: npm cache clean --force --loglevel=info
     - name: Install dependencies
-      run: npm install --loglevel=info
+      run: npm install --force --loglevel=info
     - name: Fetch
       run: npm run fetch
     - name: Compile
@@ -55,7 +55,7 @@ jobs:
     - name: Clean cache
       run: npm cache clean --force --loglevel=info
     - name: Install dependencies
-      run: npm install --loglevel=info
+      run: npm install --force --loglevel=info
     - name: Fetch
       run: npm run fetch
     - name: Compile
@@ -109,7 +109,7 @@ jobs:
       run: npm cache clean --force --loglevel=info
     - name: Install dependencies
       working-directory: D:\repo
-      run: npm install --loglevel=info
+      run: npm install --force --loglevel=info
     - name: Fetch
       working-directory: D:\repo
       run: npm run fetch
