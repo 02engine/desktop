@@ -7,7 +7,6 @@ on:
     - 'v*'
 
 permissions:
-  # required to modify releases
   contents: write
 
 jobs:
@@ -25,10 +24,13 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
-    - name: Clean cache
-      run: npm cache clean --force --loglevel=info
-    - name: Install dependencies
-      run: npm install --force --loglevel=info
+        # 为 setup-node 动作本身也禁用缓存
+        cache: 'npm' # 明确指定缓存类型，但后续步骤会覆盖
+    - name: Clean cache and install without caching
+      run: |
+        npm config set cache $(mktemp -d)  # 设置缓存到一个临时目录，每次不同
+        npm cache clean --force
+        npm install --no-cache --force --loglevel=info
     - name: Fetch
       run: npm run fetch
     - name: Compile
@@ -64,10 +66,12 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
-    - name: Clean cache
-      run: npm cache clean --force --loglevel=info
-    - name: Install dependencies
-      run: npm install --force --loglevel=info
+        cache: 'npm' # 明确指定缓存类型，但后续步骤会覆盖
+    - name: Clean cache and install without caching
+      run: |
+        npm config set cache $(mktemp -d)  # macOS 也使用临时目录
+        npm cache clean --force
+        npm install --no-cache --force --loglevel=info
     - name: Fetch
       run: npm run fetch
     - name: Compile
@@ -75,7 +79,7 @@ jobs:
     - name: Package
       run: |
         node release-automation/build.js --mac --universal
-        node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
+        node release-automation/build.js --mac-legacy-10.13-10-14 --mac-legacy-10-15 --x64
     - name: Print file tree
       run: node scripts/print-file-tree.js dist
     - name: Upload artifacts to GitHub Actions
@@ -89,19 +93,9 @@ jobs:
         file: dist/*.dmg
         draft: false
 
-
-
   release-windows:
-    # GitHub's Windows runners have a C: drive and a D: drive.
-    # C: is for the OS and has good read performance but awful write performance.
-    # D: has much better faster write performance (>20x faster than C:)
-    # We want to use the D: drive whenever we can. Trying to do "npm ci" on the C:
-    # drive has been observed to take over an hour!
     runs-on: windows-latest
     steps:
-    # actions/checkout can only clone to paths in $GITHUB_WORKSPACE which is on the C: drive,
-    # so we have to clone to C: then copy to D: after. This repository itself isn't huge so
-    # this is plenty fast.
     - name: Checkout
       uses: actions/checkout@v4
       with:
@@ -116,18 +110,16 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
-    # The repository being on D: means that node_modules IO will be fast, but npm still downloads
-    # packages to a temporary folder for caching which is on C: by default. We need to make sure
-    # npm uses the D: drive instead otherwise we still get bottlenecked by C:.
-    - name: "Configure npm to use D: drive"
+        cache: 'npm' # 明确指定缓存类型，但后续步骤会覆盖
+        cache-dependency-path: '' # 确保不缓存特定路径
+    - name: "Configure npm to use temporary cache on D: drive"
       run: |
-        npm config set cache D:\npm-cache
-        npm config set prefix D:\npm-prefix
-    - name: Clean cache
-      run: npm cache clean --force --loglevel=info
+        $tempCachePath = "D:\temp-npm-cache-$((Get-Random).ToString('X'))"
+        npm config set cache $tempCachePath
+        npm cache clean --force
     - name: Install dependencies
       working-directory: D:\repo
-      run: npm install --force --loglevel=info
+      run: npm install --no-cache --force --loglevel=info
     - name: Fetch
       working-directory: D:\repo
       run: npm run fetch
