@@ -21,7 +21,7 @@ jobs:
     - name: Clean cache
       run: npm cache clean --force --loglevel=info
     - name: Install dependencies
-      run: npm install --loglevel=info
+      run: npm install --force --loglevel=info
     - name: Prepare extensions
       # Don't need to do a full fetch, that would just cause a lot of unnecessary traffic
       run: node scripts/prepare-extensions.js
