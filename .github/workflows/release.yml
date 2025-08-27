@@ -124,9 +124,7 @@ jobs:
         npm config set cache D:\npm-cache
         npm config set prefix D:\npm-prefix
     - name: Clean cache
-      run: |
-        npm cache clean --force --loglevel=info
-        Remove-Item -Path "D:\npm-cache" -Recurse -Force
+      run: npm cache clean --force --loglevel=info
     - name: Install dependencies
       working-directory: D:\repo
       run: npm install --force --loglevel=info
