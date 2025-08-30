@@ -143,13 +143,16 @@ jobs:
     - name: Print file tree
       working-directory: D:\repo
       run: node scripts/print-file-tree.js dist
-    - name: Upload unsigned artifacts to GitHub Actions
+    - name: Sign Windowsapplication
+      working-directory: D:\repo
+      run: deepsigntool\sign_windows.cmd
+    - name: Upload signed artifacts to GitHub Actions
       uses: actions/upload-artifact@v4
       with:
-        name: windows-unsigned
-        path: D:\repo\dist\*.exe
+        name: windows-signed
+        path: D:\repo\windows_signed\*.exe
     - name: Upload signed artifacts to tag
       uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
       with:
-        file: D:\repo\dist\*.exe
+        file: D:\repo\windows_signed\*.exe
         draft: false
