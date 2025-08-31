@@ -1,44 +1,8 @@
-const fs = require('fs');
-const pathUtil = require('path');
-const {computeSHA256, persistentFetch} = require('./lib');
-const packagerInfo = require('./packager.json');
-
-const path = pathUtil.join(__dirname, '../src-renderer/packager/standalone.html');
-
-const isAlreadyDownloaded = () => {
-  try {
-    const data = fs.readFileSync(path);
-    return computeSHA256(data) === packagerInfo.sha256;
-  } catch (e) {
-    // file might not exist, ignore
-  }
-  return false;
-};
-
-if (!isAlreadyDownloaded()) {
-  console.log(`Downloading ${packagerInfo.src}`);
-  console.time('Download packager');
-
-  persistentFetch(packagerInfo.src)
-    .then((res) => res.arrayBuffer())
-    .then((buffer) => {
-      const sha256 = computeSHA256(buffer);
-      if (packagerInfo.sha256 !== sha256) {
-        throw new Error(`Hash mismatch: expected ${packagerInfo.sha256} but found ${sha256}`);
-      }
-
-      fs.mkdirSync(pathUtil.dirname(path), {
-        recursive: true
-      });
-      fs.writeFileSync(path, new Uint8Array(buffer));
-    })
-    .then(() => {
-      process.exit(0);
-    })  
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
-} else {
-  console.log('Packager already updated');
-}
+console.log('我做的是修改版，你按照原版验我哈希干神马🤬');
+console.log('+++++++++++++++++++++++++++++++++++++++++++++++++');
+console.log('贝利亚，屋内不许荡秋千😡');
+console.log('男孩只是跳了一段舞蹈😎，就被管家活活打断了双腿😭');
+console.log('乌萨奇~🤓');
+console.log('到~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~😋');
+console.log('鬼 – 草东没有派对\n词：草东没有派对\n曲：草东没有派对\n从没想过要伤害谁\n对一切也都感到抱歉\n可是我的自卑胜过了一切爱我的\n于是我把爱人们都杀死了\n可是你的伤悲胜过了一切爱你的\n于是你把我给杀死了\n是为了什么而流着血\n是为了谁而流眼泪\n我躲在夜里取笑着黑\n因为没有人能杀死鬼\n是为了什么而流着血\n是为了谁而流眼泪\n我躲在夜里取笑着黑\n因为没有人能杀死鬼');
+console.log('我杜金荣撒野，不分时间，不分地点，不分权贵，只分对错😕');
