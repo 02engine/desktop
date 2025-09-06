@@ -40,7 +40,7 @@ import os
 import requests
 
 api = HfApi()
-repo_id = '<YOUR_HF_USERNAME>/<YOUR_HF_REPO>'
+repo_id = '02engine/02engine_release'
 token = os.getenv('HF_TOKEN')
 
 # 读取所有 Release
