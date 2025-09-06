@@ -40,7 +40,7 @@ for release in releases:
                 path_or_fileobj=asset_path,
                 path_in_repo=repo_path,
                 repo_id=repo_id,
-                repo_type='model',
+                repo_type='dataset',
                 token=token
             )
         else:
