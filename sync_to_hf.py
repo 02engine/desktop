@@ -3,7 +3,7 @@ import json
 import os
 import requests
 
-prin("贝利亚！")
+print("贝利亚！")
 print('Starting script...')
 api = HfApi()
 repo_id = '02engine/02engine_release'  # 替换为实际值
