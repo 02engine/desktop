@@ -1,0 +1,80 @@
+name: Sync All GitHub Releases to Hugging Face
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天午夜运行
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  sync-to-hf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install huggingface_hub requests
+
+      - name: Get All Releases Info
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 获取所有 Release 信息
+          curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            https://api.github.com/repos/<YOUR_USERNAME>/<YOUR_REPO>/releases > releases.json
+
+      - name: Download and Upload Release Assets
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+from huggingface_hub import HfApi
+import json
+import os
+import requests
+
+api = HfApi()
+repo_id = '<YOUR_HF_USERNAME>/<YOUR_HF_REPO>'
+token = os.getenv('HF_TOKEN')
+
+# 读取所有 Release
+with open('releases.json') as f:
+    releases = json.load(f)
+
+# 获取现有 Hugging Face 文件，避免重复上传
+existing_files = api.list_repo_files(repo_id=repo_id, repo_type='model', token=token)
+
+for release in releases:
+    tag_name = release['tag_name']
+    os.makedirs(tag_name, exist_ok=True)
+    
+    # 下载 Release 的所有资产
+    for asset in release['assets']:
+        asset_name = asset['name']
+        asset_path = os.path.join(tag_name, asset_name)
+        repo_path = f'{tag_name}/{asset_name}'
+        
+        # 检查是否已存在
+        if repo_path not in existing_files:
+            print(f'Downloading {asset_name} for tag {tag_name}')
+            with open(asset_path, 'wb') as f:
+                f.write(requests.get(asset['browser_download_url']).content)
+            
+            # 上传到 Hugging Face
+            print(f'Uploading {asset_path} to {repo_path}')
+            api.upload_file(
+                path_or_fileobj=asset_path,
+                path_in_repo=repo_path,
+                repo_id=repo_id,
+                repo_type='model',  # 或 'dataset'、'space'
+                token=token
+            )
+        else:
+            print(f'Skipping {repo_path}, already exists')
+"
