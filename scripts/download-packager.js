@@ -38,6 +38,28 @@ function ensureDirectoryExists() {
   });
 }
 
+// Check and remove existing file
+function removeExistingFile() {
+  return new Promise((resolve, reject) => {
+    fs.access(outputPath, fs.constants.F_OK, (err) => {
+      if (err) {
+        log.info(`File ${outputPath} does not exist, proceeding with download`);
+        resolve();
+      } else {
+        fs.unlink(outputPath, (err) => {
+          if (err) {
+            log.error(`Failed to delete existing file ${outputPath}: ${err.message}`);
+            reject(err);
+          } else {
+            log.info(`Deleted existing file ${outputPath}`);
+            resolve();
+          }
+        });
+      }
+    });
+  });
+}
+
 // Get latest release download URL
 function getLatestReleaseDownloadUrl() {
   return new Promise((resolve, reject) => {
@@ -128,7 +150,7 @@ function downloadFile(url) {
         const totalSize = parseInt(res.headers['content-length'] || '0', 10);
         let downloadedSize = 0;
 
-        const file = fs.createWriteStream(outputPath, { flags: 'wx' });
+        const file = fs.createWriteStream(outputPath);
         res.pipe(file);
 
         // Progress tracking
@@ -167,6 +189,7 @@ function downloadFile(url) {
 async function main() {
   try {
     await ensureDirectoryExists();
+    await removeExistingFile();
     const downloadUrl = await getLatestReleaseDownloadUrl();
     await downloadFile(downloadUrl);
   } catch (err) {
