@@ -1,26 +1,34 @@
 const https = require('https');
 const fs = require('fs');
-const pathUtil = require('path');
-const chalk = require('chalk'); // For colored console output
+const path = require('path');
 
-// Configure logging
+// ANSI color codes for logging
+const colors = {
+  reset: '\x1b[0m',
+  blue: '\x1b[34m',
+  green: '\x1b[32m',
+  red: '\x1b[31m',
+  yellow: '\x1b[33m',
+};
+
+// Structured logging
 const log = {
-  info: (msg) => console.log(chalk.blue(`[INFO] ${msg}`)),
-  success: (msg) => console.log(chalk.green(`[SUCCESS] ${msg}`)),
-  error: (msg) => console.error(chalk.red(`[ERROR] ${msg}`)),
-  warn: (msg) => console.log(chalk.yellow(`[WARN] ${msg}`)),
+  info: (msg) => console.log(`${colors.blue}[INFO] ${msg}${colors.reset}`),
+  success: (msg) => console.log(`${colors.green}[SUCCESS] ${msg}${colors.reset}`),
+  error: (msg) => console.error(`${colors.red}[ERROR] ${msg}${colors.reset}`),
+  warn: (msg) => console.log(`${colors.yellow}[WARN] ${msg}${colors.reset}`),
 };
 
 // Specify file path
-const path = pathUtil.join(__dirname, '../src-renderer/packager/standalone.html');
+const outputPath = path.join(__dirname, '../src-renderer/packager/standalone.html');
 
 // Ensure directory exists
 function ensureDirectoryExists() {
   return new Promise((resolve, reject) => {
-    const dir = pathUtil.dirname(path);
+    const dir = path.dirname(outputPath);
     fs.mkdir(dir, { recursive: true }, (err) => {
       if (err) {
-        log.error(`Failed to create directory: ${err.message}`);
+        log.error(`Failed to create directory ${dir}: ${err.message}`);
         reject(err);
       } else {
         log.info(`Directory ensured: ${dir}`);
@@ -33,23 +41,20 @@ function ensureDirectoryExists() {
 // Get latest release download URL
 function getLatestReleaseDownloadUrl() {
   return new Promise((resolve, reject) => {
-    log.info('Fetching latest release information...');
+    log.info('Fetching latest release information from GitHub API...');
     const req = https.get('https://api.github.com/repos/02engine/packager/releases/latest', {
       headers: {
         'User-Agent': 'Node.js',
         'Accept': 'application/vnd.github.v3+json',
       },
     }, (res) => {
-      let data = '';
-
       if (res.statusCode !== 200) {
-        reject(new Error(`GitHub API request failed with status: ${res.statusCode}`));
+        reject(new Error(`GitHub API request failed with status ${res.statusCode}`));
         return;
       }
 
-      res.on('data', chunk => {
-        data += chunk;
-      });
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
 
       res.on('end', () => {
         let json;
@@ -74,7 +79,7 @@ function getLatestReleaseDownloadUrl() {
           return;
         }
 
-        log.success(`Found asset: ${asset.name}`);
+        log.success(`Found asset: ${asset.name} (${asset.size} bytes)`);
         resolve(asset.browser_download_url);
       });
     });
@@ -120,10 +125,10 @@ function downloadFile(url) {
           return;
         }
 
-        const totalSize = parseInt(res.headers['content-length'], 10);
+        const totalSize = parseInt(res.headers['content-length'] || '0', 10);
         let downloadedSize = 0;
 
-        const file = fs.createWriteStream(path, { flags: 'wx' }); // 'wx' prevents overwriting existing file
+        const file = fs.createWriteStream(outputPath, { flags: 'wx' });
         res.pipe(file);
 
         // Progress tracking
@@ -135,18 +140,18 @@ function downloadFile(url) {
 
         file.on('finish', () => {
           file.close();
-          log.success('Download completed successfully');
+          log.success(`Download completed and saved to ${outputPath}`);
           console.timeEnd('downloadTime');
           resolve();
         });
 
         file.on('error', (err) => {
-          fs.unlink(path, () => {}); // Clean up partial file
+          fs.unlink(outputPath, () => {}); // Clean up partial file
           reject(new Error(`File write error: ${err.message}`));
         });
 
         res.on('error', (err) => {
-          fs.unlink(path, () => {}); // Clean up partial file
+          fs.unlink(outputPath, () => {}); // Clean up partial file
           reject(new Error(`Download stream error: ${err.message}`));
         });
       }).on('error', (err) => {
