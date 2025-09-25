@@ -7,7 +7,7 @@ const path = pathUtil.join(__dirname, '../src-renderer/packager/standalone.html'
 
 // 获取最新 release 的下载链接
 function getLatestReleaseDownloadUrl(callback) {
-  https.get('https://api.github.com/repos/02engie/packer/releases/latest', {
+  https.get('https://api.github.com/repos/02engine/packager/releases/latest', {
     headers: {
       'User-Agent': 'Node.js' // GitHub API 需要 User-Agent
     }
