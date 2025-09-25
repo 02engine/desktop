@@ -1,0 +1,22 @@
+name: Build1290233290
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+    - name: Install strip-nondeterminism
+      run: sudo apt-get install strip-nondeterminism
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: run!!!
+      run: node ./scripts/download-packager.js
