@@ -1,0 +1,20 @@
+name: Build1290233290
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: run!!!
+      run: node ./scripts/download-packager.js
