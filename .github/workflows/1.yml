@@ -17,4 +17,6 @@ jobs:
       with:
         node-version: 22
     - name: run!!!
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: node ./scripts/download-packager.js
