@@ -64,29 +64,14 @@ function removeExistingFile() {
 function getLatestReleaseDownloadUrl() {
   return new Promise((resolve, reject) => {
     log.info('Fetching latest release information from GitHub API...');
-    const headers = {
-      'User-Agent': 'PackagerDownloader/1.0',
-      'Accept': 'application/vnd.github.v3+json',
-    };
-    if (process.env.GITHUB_TOKEN) {
-      headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
-      log.info('Using GitHub token for authentication');
-    }
-
     const req = https.get('https://api.github.com/repos/02engine/packager/releases/latest', {
-      headers,
+      headers: {
+        'User-Agent': 'Node.js',
+        'Accept': 'application/vnd.github.v3+json',
+      },
     }, (res) => {
-      // Log rate limit info
-      log.info(`Rate limit remaining: ${res.headers['x-ratelimit-remaining'] || 'N/A'}`);
-      log.info(`Rate limit reset: ${new Date(parseInt(res.headers['x-ratelimit-reset'] || '0') * 1000).toISOString() || 'N/A'}`);
-
       if (res.statusCode !== 200) {
-        let errorBody = '';
-        res.on('data', chunk => { errorBody += chunk; });
-        res.on('end', () => {
-          log.error(`Error body: ${errorBody}`);
-          reject(new Error(`GitHub API request failed with status ${res.statusCode}: ${errorBody}`));
-        });
+        reject(new Error(`GitHub API request failed with status ${res.statusCode}`));
         return;
       }
 
@@ -130,34 +115,30 @@ function getLatestReleaseDownloadUrl() {
       reject(new Error('GitHub API request timed out'));
     });
 
-    req.setTimeout(15000); // Increased to 15 seconds for robustness
+    req.setTimeout(10000); // 10 second timeout
   });
 }
 
-// Download file with progress tracking and retry logic
-function downloadFile(url, retries = 3) {
+// Download file with progress tracking
+function downloadFile(url) {
   return new Promise((resolve, reject) => {
-    log.info(`Initiating download from ${url} (retries left: ${retries})`);
+    log.info(`Initiating download from ${url}`);
     console.time('downloadTime');
 
     let redirectCount = 0;
     const maxRedirects = 5;
 
-    function get(url, currentRetry = 0) {
+    function get(url) {
       if (redirectCount >= maxRedirects) {
         reject(new Error(`Maximum redirects (${maxRedirects}) exceeded`));
         return;
       }
 
-      https.get(url, { 
-        headers: { 
-          'User-Agent': 'PackagerDownloader/1.0'
-        } 
-      }, (res) => {
+      https.get(url, { headers: { 'User-Agent': 'Node.js' } }, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
           redirectCount++;
           log.warn(`Redirect (${redirectCount}/${maxRedirects}) to: ${res.headers.location}`);
-          get(res.headers.location, currentRetry);
+          get(res.headers.location);
           return;
         }
 
@@ -176,9 +157,7 @@ function downloadFile(url, retries = 3) {
         res.on('data', (chunk) => {
           downloadedSize += chunk.length;
           const progress = totalSize ? Math.round((downloadedSize / totalSize) * 100) : 'Unknown';
-          process.stdout.clearLine();
-          process.stdout.cursorTo(0);
-          process.stdout.write(`Download progress: ${progress}% (${downloadedSize}/${totalSize || 'Unknown'} bytes)`);
+          log.info(`Download progress: ${progress}% (${downloadedSize}/${totalSize || 'Unknown'} bytes)`);
         });
 
         file.on('finish', () => {
@@ -190,30 +169,15 @@ function downloadFile(url, retries = 3) {
 
         file.on('error', (err) => {
           fs.unlink(outputPath, () => {}); // Clean up partial file
-          if (currentRetry < retries) {
-            log.warn(`File write error on retry ${currentRetry + 1}/${retries}: ${err.message}. Retrying...`);
-            setTimeout(() => get(url, currentRetry + 1), 1000 * (currentRetry + 1)); // Exponential backoff
-          } else {
-            reject(new Error(`File write error after ${retries} retries: ${err.message}`));
-          }
+          reject(new Error(`File write error: ${err.message}`));
         });
 
         res.on('error', (err) => {
           fs.unlink(outputPath, () => {}); // Clean up partial file
-          if (currentRetry < retries) {
-            log.warn(`Download stream error on retry ${currentRetry + 1}/${retries}: ${err.message}. Retrying...`);
-            setTimeout(() => get(url, currentRetry + 1), 1000 * (currentRetry + 1));
-          } else {
-            reject(new Error(`Download stream error after ${retries} retries: ${err.message}`));
-          }
+          reject(new Error(`Download stream error: ${err.message}`));
         });
       }).on('error', (err) => {
-        if (currentRetry < retries) {
-          log.warn(`Download request error on retry ${currentRetry + 1}/${retries}: ${err.message}. Retrying...`);
-          setTimeout(() => get(url, currentRetry + 1), 1000 * (currentRetry + 1));
-        } else {
-          reject(new Error(`Download request error after ${retries} retries: ${err.message}`));
-        }
+        reject(new Error(`Download request error: ${err.message}`));
       });
     }
 
@@ -228,7 +192,6 @@ async function main() {
     await removeExistingFile();
     const downloadUrl = await getLatestReleaseDownloadUrl();
     await downloadFile(downloadUrl);
-    log.success('Script completed successfully!');
   } catch (err) {
     log.error(`Fatal error: ${err.message}`);
     process.exit(1);
