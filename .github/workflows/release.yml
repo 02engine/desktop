@@ -30,6 +30,8 @@ jobs:
     - name: Install dependencies
       run: npm install --force --loglevel=info
     - name: Fetch
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: npm run fetch
     - name: Compile
       run: npm run webpack:prod
@@ -69,6 +71,8 @@ jobs:
     - name: Install dependencies
       run: npm install --force --loglevel=info
     - name: Fetch
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: npm run fetch
     - name: Compile
       run: npm run webpack:prod
@@ -129,6 +133,8 @@ jobs:
       working-directory: D:\repo
       run: npm install --force --loglevel=info
     - name: Fetch
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       working-directory: D:\repo
       run: npm run fetch
     - name: Compile
