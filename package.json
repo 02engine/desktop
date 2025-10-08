@@ -48,7 +48,7 @@
       "terser-webpack-plugin": "^4.2.3"
     }
   },
-  "homepage": "https://desktop.turbowarp.org/",
+  "homepage": "https://02engine.02studio.xyz/",
   "repository": {
     "type": "git",
     "url": "https://github.com/02engine/desktop.git"
