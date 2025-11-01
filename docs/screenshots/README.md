@@ -1,4 +1,4 @@
-# Screenshots for TurboWarp Desktop
+# Screenshots for 02Engine Desktop
 
 Keeping these directly in https://github.com/TurboWarp/desktop/ feels like bloat, so we pulled them out.
 

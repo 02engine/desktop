@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>TurboWarp Desktop Download Statistics</title>
+    <title>02Engine Desktop Download Statistics</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
@@ -40,18 +40,11 @@
     </style>
   </head>
   <body>
-    <p>Estimated download counts for TurboWarp Desktop based on GitHub releases download statistics.</p>
+    <p>Estimated download counts for 02Engine Desktop based on GitHub releases download statistics.</p>
     <p>These estimates do not include downloads from these sources:</p>
-    <ul>
-      <li><a href="https://www.microsoft.com/en-us/p/turbowarp/9p4dpzgv5zkl">Microsoft Store</a></li>
-      <li><a href="https://snapcraft.io/turbowarp-desktop">Snap Store</a></li>
-      <li><a href="https://flathub.org/apps/details/org.turbowarp.TurboWarp">Flathub</a></li>
-      <li>The Debian repository</li>
-    </ul>
-    <p>The <a href="https://aur.archlinux.org/packages/turbowarp-desktop-bin">Arch User Repository</a> package downloads the linux-armv7l tar.gz.</p>
     <main><p>Loading...</p></main>
     <script>
-      fetch('https://api.github.com/repos/TurboWarp/desktop/releases?per_page=100')
+      fetch('https://api.github.com/repos/02Engine/desktop/releases?per_page=100')
         .then((r) => {
           if (!r.ok) throw new Error('Unexpected status code: ' + r.status);
           return r.json();
