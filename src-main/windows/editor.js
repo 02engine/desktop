@@ -610,6 +610,38 @@ class EditorWindow extends ProjectRunningWindow {
       }
     });
 
+    // 处理打开 OAuth 窗口的请求
+    this.ipc.handle('open-oauth-window', async (event, url) => {
+      try {
+        const { BrowserWindow } = require('electron');
+        
+        // 创建一个新的浏览器窗口用于 OAuth
+        const oauthWindow = new BrowserWindow({
+          width: 600,
+          height: 800,
+          webPreferences: {
+            preload: require('path').join(__dirname, '../preload/editor.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: false // 为 OAuth 窗口禁用 webSecurity
+          },
+          parent: this.window, // 设置主窗口为父窗口
+          modal: false // 不设为模态，允许用户在窗口间切换
+        });
+
+        // 加载 OAuth URL
+        await oauthWindow.loadURL(url);
+        
+        // 显示窗口
+        oauthWindow.show();
+        
+        return true;
+      } catch (error) {
+        console.error('Failed to open OAuth window:', error);
+        throw error;
+      }
+    });
+
     this.loadURL('tw-editor://./gui/gui.html');
     this.show();
   }
@@ -678,7 +710,10 @@ class EditorWindow extends ProjectRunningWindow {
           webPreferences: {
             preload: path.join(__dirname, '../preload/editor.js'), // 使用相同的预加载脚本
             nodeIntegration: false,
-            contextIsolation: true
+            contextIsolation: true,
+            // 允许远程页面运行 JavaScript 和访问存储
+            webSecurity: false, // 为远程 OAuth 页面禁用 webSecurity，允许跨域请求
+            allowRunningInsecureContent: false
           }
         }
       };

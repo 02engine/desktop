@@ -23,7 +23,8 @@ contextBridge.exposeInMainWorld('EditorPreload', {
   },
   setIsFullScreen: (isFullScreen) => ipcRenderer.invoke('set-is-full-screen', isFullScreen),
   // GitHub OAuth 相关API
-  exchangeOAuthCode: async (params) => ipcRenderer.invoke('exchange-oauth-code', params)
+  exchangeOAuthCode: async (params) => ipcRenderer.invoke('exchange-oauth-code', params),
+  openOAuthWindow: (url) => ipcRenderer.invoke('open-oauth-window', url)
 });
 
 let exportForPackager = () => Promise.reject(new Error('exportForPackager missing'));
