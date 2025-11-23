@@ -667,6 +667,23 @@ class EditorWindow extends ProjectRunningWindow {
       //}
     }
 
+    // Open oauth-proxy in a new window
+    if (url.href.startsWith('https://idyllic-kangaroo-a50663.netlify.app/')) {
+      // 允许打开远程 oauth-proxy 页面
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 600,
+          height: 800,
+          webPreferences: {
+            preload: path.join(__dirname, '../preload/editor.js'), // 使用相同的预加载脚本
+            nodeIntegration: false,
+            contextIsolation: true
+          }
+        }
+      };
+    }
+
     // Open extension documentation in-app
     const extensionsDocsMatch = details.url.match(
       /^https:\/\/extensions\.turbowarp\.org\/([\w_\-.\/]+)$/
