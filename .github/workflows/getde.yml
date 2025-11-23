@@ -1,0 +1,38 @@
+name: Get dependencies
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+    - name: Install strip-nondeterminism
+      run: sudo apt-get install strip-nondeterminism
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
+    - name: Install dependencies
+      run: npm install --force --loglevel=info
+    - name: Fetch
+      run: npm run fetch
+    - name: Compile
+      run: npm run webpack:prod
+    - name: Package
+      run: |
+        node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
+    - name: Print file tree
+      run: node scripts/print-file-tree.js dist
+    - name: Upload artifacts to GitHub Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux
+        path: ./*
