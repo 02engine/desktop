@@ -21,7 +21,9 @@ contextBridge.exposeInMainWorld('EditorPreload', {
   setExportForPackager: (callback) => {
     exportForPackager = callback;
   },
-  setIsFullScreen: (isFullScreen) => ipcRenderer.invoke('set-is-full-screen', isFullScreen)
+  setIsFullScreen: (isFullScreen) => ipcRenderer.invoke('set-is-full-screen', isFullScreen),
+  // GitHub OAuth 相关API
+  exchangeOAuthCode: async (params) => ipcRenderer.invoke('exchange-oauth-code', params)
 });
 
 let exportForPackager = () => Promise.reject(new Error('exportForPackager missing'));

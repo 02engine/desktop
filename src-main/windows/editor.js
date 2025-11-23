@@ -551,6 +551,65 @@ class EditorWindow extends ProjectRunningWindow {
       this.isInEditorFullScreen = !!isFullScreen;
     });
 
+    // 处理 GitHub OAuth 代码交换
+    this.ipc.handle('exchange-oauth-code', async (event, params) => {
+      try {
+        const { code, code_verifier, client_id, redirect_uri } = params;
+
+        // 向后端发送授权码以交换访问令牌
+        const response = await fetch('https://02engine-desktop-oauth-backend.netlify.app/.netlify/functions/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: code,
+            code_verifier: code_verifier,
+            client_id: client_id,
+            redirect_uri: redirect_uri
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok || data.error) {
+          throw new Error(data.error_description || data.error || 'Token exchange failed');
+        }
+
+        const token = data.access_token;
+
+        // 获取用户信息
+        const userResponse = await fetch('https://api.github.com/user', {
+          headers: {
+            'Authorization': `token ${token}`,
+            'User-Agent': '02Engine-Desktop-OAuth'
+          }
+        });
+
+        if (!userResponse.ok) {
+          throw new Error('Failed to get user info');
+        }
+
+        const user = await userResponse.json();
+
+        // 获取用户邮箱
+        let email = user.email;
+        if (!email) {
+          const emailResponse = await fetch('https://api.github.com/user/emails', {
+            headers: {
+              'Authorization': `token ${token}`,
+              'User-Agent': '02Engine-Desktop-OAuth'
+            }
+          });
+          const emails = await emailResponse.json();
+          email = emails.find(e => e.primary)?.email || 'Not public';
+        }
+
+        // 返回用户数据
+        return { token, user, email };
+      } catch (error) {
+        console.error('OAuth code exchange failed:', error);
+        throw error;
+      }
+    });
+
     this.loadURL('tw-editor://./gui/gui.html');
     this.show();
   }
