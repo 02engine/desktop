@@ -24,7 +24,11 @@ contextBridge.exposeInMainWorld('EditorPreload', {
   setIsFullScreen: (isFullScreen) => ipcRenderer.invoke('set-is-full-screen', isFullScreen),
   // GitHub OAuth 相关API
   exchangeOAuthCode: async (params) => ipcRenderer.invoke('exchange-oauth-code', params),
-  openOAuthWindow: (url) => ipcRenderer.invoke('open-oauth-window', url)
+  openOAuthWindow: (url) => ipcRenderer.invoke('open-oauth-window', url),
+  openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
+  readClipboard: () => ipcRenderer.invoke('read-clipboard'),
+  writeClipboard: (text) => ipcRenderer.invoke('write-clipboard', text),
+  fetchUserInfo: (token) => ipcRenderer.invoke('fetch-user-info', token)
 });
 
 let exportForPackager = () => Promise.reject(new Error('exportForPackager missing'));

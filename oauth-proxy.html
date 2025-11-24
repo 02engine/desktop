@@ -350,12 +350,40 @@
       }
     }
 
-    // 修改displayUserInfo函数，以便在显示用户信息后自动发送token
+    // 修改displayUserInfo函数，以便在显示用户信息后将token等信息存储到 localStorage
     const originalDisplayUserInfo = displayUserInfo;
     displayUserInfo = function(user, email, token) {
       originalDisplayUserInfo(user, email, token);
+      
+      // 存储到 localStorage 以供桌面应用轮询检查
+      localStorage.setItem('oauth_token_received', token);
+      localStorage.setItem('github_user', JSON.stringify(user));
+      localStorage.setItem('github_email', email);
+      
+      // 显示成功消息和指示用户返回应用
+      const contentDiv = document.querySelector('.content');
+      if (contentDiv) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'token-section';
+        successDiv.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="token-title">认证成功！</span>
+          </div>
+          <p>认证已完成，请返回桌面应用。</p>
+          <p>如未自动返回，请手动关闭此窗口。</p>
+        `;
+        contentDiv.appendChild(successDiv);
+      }
+      
+      // 通知桌面应用
       onTokenReceived(token);
-      checkDesktopAndClose();
+      
+      // 在桌面环境中，可以自动关闭窗口
+      if (window.EditorPreload) {
+        setTimeout(() => {
+          window.close();
+        }, 2000); // 2秒后关闭窗口
+      }
     };
   </script>
 </body>

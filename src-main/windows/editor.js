@@ -641,6 +641,80 @@ class EditorWindow extends ProjectRunningWindow {
         throw error;
       }
     });
+    
+    // 处理打开外部 URL 的请求
+    this.ipc.handle('open-external-url', async (event, url) => {
+      try {
+        const { shell } = require('electron');
+        await shell.openExternal(url);
+        return true;
+      } catch (error) {
+        console.error('Failed to open external URL:', error);
+        throw error;
+      }
+    });
+    
+    // 处理读取剪贴板的请求
+    this.ipc.handle('read-clipboard', async (event) => {
+      try {
+        const { clipboard } = require('electron');
+        return clipboard.readText();
+      } catch (error) {
+        console.error('Failed to read clipboard:', error);
+        throw error;
+      }
+    });
+    
+    // 处理写入剪贴板的请求
+    this.ipc.handle('write-clipboard', async (event, text) => {
+      try {
+        const { clipboard } = require('electron');
+        clipboard.writeText(text);
+        return true;
+      } catch (error) {
+        console.error('Failed to write clipboard:', error);
+        throw error;
+      }
+    });
+    
+    // 处理获取用户信息的请求
+    this.ipc.handle('fetch-user-info', async (event, token) => {
+      try {
+        // 使用 GitHub API 获取用户信息
+        const userInfoResponse = await fetch('https://api.github.com/user', {
+          headers: {
+            'Authorization': `token ${token}`,
+            'User-Agent': '02Engine-Desktop-OAuth'
+          }
+        });
+        
+        if (!userInfoResponse.ok) {
+          throw new Error(`Failed to fetch user info: ${userInfoResponse.status} ${userInfoResponse.statusText}`);
+        }
+        
+        const user = await userInfoResponse.json();
+        
+        // 获取用户邮箱
+        let email = user.email;
+        if (!email) {
+          const emailResponse = await fetch('https://api.github.com/user/emails', {
+            headers: {
+              'Authorization': `token ${token}`,
+              'User-Agent': '02Engine-Desktop-OAuth'
+            }
+          });
+          if (emailResponse.ok) {
+            const emails = await emailResponse.json();
+            email = emails.find(e => e.primary)?.email || 'Not public';
+          }
+        }
+        
+        return { user, email };
+      } catch (error) {
+        console.error('Failed to fetch user info:', error);
+        throw error;
+      }
+    });
 
     this.loadURL('tw-editor://./gui/gui.html');
     this.show();
