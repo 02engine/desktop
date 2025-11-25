@@ -11,6 +11,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y file binutils dpkg
+
+    - name: Debug package file
+      run: cat dist/02Engine-linux-arm64-1.1.8.deb
         
     - name: Debug package file
       run: |
