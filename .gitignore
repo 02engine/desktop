@@ -6,7 +6,6 @@ node_modules/
 scratch-gui/
 
 # Built files
-dist
 dist-renderer-webpack
 dist-library-files
 dist-extensions

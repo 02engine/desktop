@@ -1,0 +1,56 @@
+name: Convert 02Engine DEB packages (One by One)
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  convert-debs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          bash binutils fakeroot git wget dpkg coreutils
+          
+    - name: Install debtap
+      run: |
+        git clone https://github.com/helixarch/debtap.git
+        sudo cp debtap/debtap /usr/local/bin/debtap
+        sudo chmod +x /usr/local/bin/debtap
+        sudo debtap -u <<< "y" || echo "Database update completed or failed"
+        
+    - name: Make scripts executable
+      run: |
+        chmod +x *.sh
+        echo "脚本权限设置完成"
+        ls
+        
+    - name: Check dist directory
+      run: |
+        echo "dist 目录内容:"
+        ls -la dist/ || echo "dist 目录不存在或为空"
+        
+    - name: Convert DEB packages one by one
+      run: |
+        ./convertarch.sh
+        
+    - name: Show results
+      run: |
+        echo "=== 转换结果 ==="
+        find arch-packages -name "*.pkg.tar.*" 2>/dev/null | while read file; do
+          echo "✅ $(basename "$file")"
+        done || echo "没有生成包文件"
+        
+    - name: Upload Arch packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: 02engine-arch-linux-packages
+        path: arch-packages/
+        retention-days: 30
+        if-no-files-found: warn
