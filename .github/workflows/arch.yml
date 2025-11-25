@@ -12,28 +12,37 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Install dependencies
+    - name: Install dependencies (without pkgfile)
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           git fakeroot binutils wget zstd \
-          pkgfile ncurses-term
+          file coreutils sed grep
         
-        # 初始化 pkgfile
-        sudo pkgfile -u
-        
-    - name: Install debtap
+    - name: Install and patch debtap
       run: |
+        # 克隆 debtap
         git clone https://github.com/helixarch/debtap.git
+        
+        # 修改 debtap 脚本，移除 pkgfile 依赖
+        sed -i 's/pkgfile -u/echo "Skipping pkgfile update"/g' debtap/debtap
+        sed -i 's/==> Synchronizing pkgfile database/echo "Skipping pkgfile synchronization"/g' debtap/debtap
+        sed -i 's/Synchronization failed/echo "pkgfile sync skipped"/g' debtap/debtap
+        
+        # 安装 debtap
         sudo cp debtap/debtap /usr/local/bin/debtap
         sudo chmod +x /usr/local/bin/debtap
-        sudo debtap -u <<< "y" || echo "Database update completed or failed"
+        
+        # 创建必要的目录结构
+        sudo mkdir -p /usr/share/debtap
+        sudo touch /usr/share/debtap/mirrors.list
+        sudo touch /usr/share/debtap/debtap.db
         
     - name: Make scripts executable
       run: |
         chmod +x *.sh
         echo "脚本权限设置完成"
-        ls
+        ls -la
         
     - name: Check dist directory
       run: |
@@ -42,14 +51,26 @@ jobs:
         
     - name: Convert DEB packages one by one
       run: |
+        # 设置环境变量避免终端错误
+        export TERM=xterm-256color
+        
+        # 运行转换脚本
         ./convertarch.sh
         
     - name: Show results
       run: |
         echo "=== 转换结果 ==="
-        find arch-packages -name "*.pkg.tar.*" 2>/dev/null | while read file; do
-          echo "✅ $(basename "$file")"
-        done || echo "没有生成包文件"
+        if [ -d "arch-packages" ]; then
+            echo "arch-packages 目录内容:"
+            ls -la arch-packages/
+            echo ""
+            echo "生成的包文件:"
+            find arch-packages -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read file; do
+                echo "✅ $(basename "$file") - 大小: $(du -h "$file" | cut -f1)"
+            done
+        else
+            echo "❌ arch-packages 目录不存在"
+        fi
         
     - name: Upload Arch packages
       uses: actions/upload-artifact@v4
