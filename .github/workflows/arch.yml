@@ -1,45 +1,98 @@
-name: Debug DEB Package
-on: [workflow_dispatch]
+name: Convert 02Engine DEB packages
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
-  debug:
+  convert-debs:
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
     
-    - name: Install tools
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y file binutils dpkg
-
-    - name: Debug package file
-      run: cat dist/02Engine-linux-arm64-1.1.8.deb
+        sudo apt-get install -y \
+          git fakeroot binutils wget zstd \
+          file coreutils sed grep
         
-    - name: Debug package file
+    - name: Install and setup debtap
       run: |
-        echo "=== 详细检查包文件 ==="
+        # 克隆 debtap
+        git clone https://github.com/helixarch/debtap.git
         
-        # 检查 dist 目录
+        # 创建必要的缓存目录和文件
+        sudo mkdir -p /var/cache/debtap
+        sudo touch /var/cache/debtap/base-packages
+        sudo touch /var/cache/debtap/extended-base-packages-list-temp
+        
+        # 修补 debtap 脚本，跳过 pkgfile 相关步骤
+        sed -i 's/pkgfile -u/echo "跳过 pkgfile 更新"/g' debtap/debtap
+        sed -i 's|cat /var/cache/debtap/base-packages|echo "跳过 base-packages 读取"|g' debtap/debtap
+        sed -i 's|sort /var/cache/debtap/extended-base-packages-list-temp|echo "跳过 extended-base-packages 排序"|g' debtap/debtap
+        
+        # 安装 debtap
+        sudo cp debtap/debtap /usr/local/bin/debtap
+        sudo chmod +x /usr/local/bin/debtap
+        
+        # 创建其他必要目录
+        sudo mkdir -p /usr/share/debtap
+        sudo touch /usr/share/debtap/{mirrors.list,debtap.db}
+        
+    - name: Make scripts executable
+      run: |
+        chmod +x *.sh
+        echo "脚本权限设置完成"
+        ls -la
+        
+    - name: Check dist directory
+      run: |
         echo "dist 目录内容:"
-        ls -la dist/ || echo "dist 目录不存在"
+        ls -la dist/ || echo "dist 目录不存在或为空"
         
-        # 检查具体文件
-        for deb in dist/*.deb; do
-          if [ -f "$deb" ]; then
-            echo "=== 检查文件: $deb ==="
-            echo "文件类型: $(file "$deb")"
-            echo "文件大小: $(ls -lh "$deb" | cut -d' ' -f5)"
-            echo "MD5: $(md5sum "$deb" | cut -d' ' -f1)"
+    - name: Convert DEB packages one by one
+      run: |
+        # 设置环境变量
+        export TERM=xterm-256color
+        
+        # 简化转换：直接使用 debtap，不更新数据库
+        mkdir -p arch-packages
+        
+        for deb_file in dist/*.deb; do
+          if [ -f "$deb_file" ]; then
+            echo "=== 转换文件: $(basename "$deb_file") ==="
             
-            # 尝试解包
-            echo "=== 尝试解包 ==="
-            mkdir -p temp_extract
-            cd temp_extract
-            ar -x "../$deb" 2>&1 || echo "ar 解包失败"
-            ls -la
-            cd ..
-            rm -rf temp_extract
+            # 使用静默模式转换
+            echo -e "\n\nn\nn" | debtap -q "$deb_file" || echo "转换完成或出现警告"
             
-            echo "----------------------------------------"
+            # 查找并移动生成的包
+            find . -maxdepth 1 -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read pkg; do
+              if [ -f "$pkg" ]; then
+                mv "$pkg" arch-packages/
+                echo "✅ 生成: $(basename "$pkg")"
+              fi
+            done
           fi
         done
+        
+    - name: Show results
+      run: |
+        echo "=== 转换结果 ==="
+        if [ -d "arch-packages" ]; then
+            find arch-packages -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read file; do
+                echo "✅ $(basename "$file") - 大小: $(du -h "$file" | cut -f1)"
+            done || echo "没有找到包文件"
+        else
+            echo "❌ arch-packages 目录不存在"
+        fi
+        
+    - name: Upload Arch packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: 02engine-arch-linux-packages
+        path: arch-packages/
+        retention-days: 30
+        if-no-files-found: warn
