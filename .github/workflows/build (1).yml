@@ -1,0 +1,207 @@
+name: Build (Manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+    - name: Install debtap dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git fakeroot binutils wget zstd \
+          file coreutils sed grep    
+    - name: Install and setup debtap
+      run: |
+        # 克隆 debtap
+        git clone https://github.com/helixarch/debtap.git
+        
+        # 创建必要的缓存目录和文件
+        sudo mkdir -p /var/cache/debtap
+        sudo touch /var/cache/debtap/base-packages
+        sudo touch /var/cache/debtap/extended-base-packages-list-temp
+        
+        # 修补 debtap 脚本，跳过 pkgfile 相关步骤
+        sed -i 's/pkgfile -u/echo "跳过 pkgfile 更新"/g' debtap/debtap
+        sed -i 's|cat /var/cache/debtap/base-packages|echo "跳过 base-packages 读取"|g' debtap/debtap
+        sed -i 's|sort /var/cache/debtap/extended-base-packages-list-temp|echo "跳过 extended-base-packages 排序"|g' debtap/debtap
+        
+        # 安装 debtap
+        sudo cp debtap/debtap /usr/local/bin/debtap
+        sudo chmod +x /usr/local/bin/debtap
+        
+        # 创建其他必要目录
+        sudo mkdir -p /usr/share/debtap
+        sudo touch /usr/share/debtap/{mirrors.list,debtap.db}      
+    - name: Make scripts executable
+      run: |
+        chmod +x *.sh
+        echo "脚本权限设置完成"
+        ls -la
+    - name: Install strip-nondeterminism
+      run: sudo apt-get install strip-nondeterminism
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
+    - name: Install project dependencies
+      run: npm install --force --loglevel=info
+    - name: Fetch
+      run: npm run fetch
+    - name: Compile
+      run: npm run webpack:prod
+    - name: Package
+      run: |
+        node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
+    - name: Print file tree
+      run: node scripts/print-file-tree.js dist
+    - name: Run convertarch.sh script
+      run: |
+        # 设置环境变量
+        export TERM=xterm-256color
+        
+        echo "=== 开始执行 convertarch.sh ==="
+        
+        # 检查脚本是否存在
+        if [ ! -f "convertarch.sh" ]; then
+          echo "❌ convertarch.sh 脚本不存在"
+          echo "当前目录文件:"
+          ls -la
+          exit 1
+        fi
+        
+        # 检查脚本是否可执行
+        if [ ! -x "convertarch.sh" ]; then
+          echo "convertarch.sh 不可执行，添加执行权限"
+          chmod +x convertarch.sh
+        fi
+        
+        # 执行您的转换脚本
+        ./convertarch.sh    
+    - name: Show final results
+      run: |
+        echo "=== 最终结果 ==="
+        if [ -d "arch-packages" ]; then
+          echo "生成的包文件:"
+          find arch-packages -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read file; do
+            echo "✅ $(basename "$file") - 大小: $(du -h "$file" | cut -f1)"
+          done
+          echo ""
+          echo "目录结构:"
+          ls -la arch-packages/
+        else
+          echo "❌ arch-packages 目录不存在"
+          echo "当前目录:"
+          ls -la
+        fi
+    - name: Upload artifacts to GitHub Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux
+        path: |
+          dist/*.deb
+          dist/*.tar.gz
+          dist/*.AppImage
+          arch-packages/*
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
+    - name: Install dependencies
+      run: npm install --force --loglevel=info
+    - name: Fetch
+      run: npm run fetch
+    - name: Compile
+      run: npm run webpack:prod
+    - name: Package
+      run: |
+        node release-automation/build.js --mac --universal
+        node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
+    - name: Print file tree
+      run: node scripts/print-file-tree.js dist
+    - name: Upload artifacts to GitHub Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: mac
+        path: dist/*.dmg
+
+
+  build-windows:
+    # GitHub's Windows runners have a C: drive and a D: drive.
+    # C: is for the OS and has good read performance but awful write performance.
+    # D: has much better faster write performance (>20x faster than C:)
+    # We want to use the D: drive whenever we can. Trying to do "npm ci" on the C:
+    # drive has been observed to take over an hour!
+    runs-on: windows-latest
+    steps:
+    # actions/checkout can only clone to paths in $GITHUB_WORKSPACE which is on the C: drive,
+    # so we have to clone to C: then copy to D: after. This repository itself isn't huge so
+    # this is plenty fast.
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+        path: repo
+    - name: "Move repository to D: drive"
+      run: |
+        Copy-Item -Path repo -Destination D:\repo -Recurse
+        Remove-Item -Path repo -Recurse -Force
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    # The repository being on D: means that node_modules IO will be fast, but npm still downloads
+    # packages to a temporary folder for caching which is on C: by default. We need to make sure
+    # npm uses the D: drive instead otherwise we still get bottlenecked by C:.
+    - name: "Configure npm to use D: drive"
+      run: |
+        npm config set cache D:\npm-cache
+        npm config set prefix D:\npm-prefix
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
+    - name: Install dependencies
+      working-directory: D:\repo
+      run: npm install --force --loglevel=info
+    - name: Fetch
+      working-directory: D:\repo
+      run: npm run fetch
+    - name: Compile
+      working-directory: D:\repo
+      run: npm run webpack:prod
+    - name: Package
+      working-directory: D:\repo
+      run: |
+        node release-automation/build.js --windows --microsoft-store --x64 --ia32 --arm64
+        node release-automation/build.js --windows-portable --x64
+        node release-automation/build.js --windows-legacy --ia32 --x64
+    - name: Print file tree
+      working-directory: D:\repo
+      run: node scripts/print-file-tree.js dist
+    - name: Upload artifacts to GitHub Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows
+        path: |
+          D:\repo\dist\*.exe
+          D:\repo\dist\*.appx

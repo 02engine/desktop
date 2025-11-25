@@ -11,18 +11,13 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        lfs: true  # 启用 LFS 支持
       
     - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           git fakeroot binutils wget zstd \
-          file coreutils sed grep git-lfs
-        
-        # 安装并配置 Git LFS
-        git lfs install
+          file coreutils sed grep
         
     - name: Install and setup debtap
       run: |
@@ -50,66 +45,48 @@ jobs:
     - name: Make scripts executable
       run: |
         chmod +x *.sh
-        chmod +x scripts/*.sh
         echo "脚本权限设置完成"
         ls -la
         
-    - name: Check environment
+    - name: Check dist directory
       run: |
-        echo "=== 环境检查 ==="
-        echo "当前目录: $(pwd)"
-        echo "脚本列表:"
-        ls -la *.sh scripts/*.sh 2>/dev/null || echo "没有找到脚本"
-        echo ""
         echo "dist 目录内容:"
-        ls -la dist/ 2>/dev/null || echo "dist 目录不存在"
-        echo ""
-        echo "文件类型检查:"
-        for file in dist/*.deb 2>/dev/null; do
-          if [ -f "$file" ]; then
-            echo "$(basename "$file"): $(file -b "$file") - 大小: $(ls -lh "$file" | cut -d' ' -f5)"
-          fi
-        done
+        ls -la dist/ || echo "dist 目录不存在或为空"
         
-    - name: Run convertarch.sh script
+    - name: Convert DEB packages one by one
       run: |
         # 设置环境变量
         export TERM=xterm-256color
         
-        echo "=== 开始执行 convertarch.sh ==="
+        # 简化转换：直接使用 debtap，不更新数据库
+        mkdir -p arch-packages
         
-        # 检查脚本是否存在
-        if [ ! -f "convertarch.sh" ]; then
-          echo "❌ convertarch.sh 脚本不存在"
-          echo "当前目录文件:"
-          ls -la
-          exit 1
-        fi
+        for deb_file in dist/*.deb; do
+          if [ -f "$deb_file" ]; then
+            echo "=== 转换文件: $(basename "$deb_file") ==="
+            
+            # 使用静默模式转换
+            echo -e "\n\nn\nn" | debtap -q "$deb_file" || echo "转换完成或出现警告"
+            
+            # 查找并移动生成的包
+            find . -maxdepth 1 -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read pkg; do
+              if [ -f "$pkg" ]; then
+                mv "$pkg" arch-packages/
+                echo "✅ 生成: $(basename "$pkg")"
+              fi
+            done
+          fi
+        done
         
-        # 检查脚本是否可执行
-        if [ ! -x "convertarch.sh" ]; then
-          echo "convertarch.sh 不可执行，添加执行权限"
-          chmod +x convertarch.sh
-        fi
-        
-        # 执行您的转换脚本
-        ./convertarch.sh
-        
-    - name: Show final results
+    - name: Show results
       run: |
-        echo "=== 最终结果 ==="
+        echo "=== 转换结果 ==="
         if [ -d "arch-packages" ]; then
-          echo "生成的包文件:"
-          find arch-packages -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read file; do
-            echo "✅ $(basename "$file") - 大小: $(du -h "$file" | cut -f1)"
-          done
-          echo ""
-          echo "目录结构:"
-          ls -la arch-packages/
+            find arch-packages -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read file; do
+                echo "✅ $(basename "$file") - 大小: $(du -h "$file" | cut -f1)"
+            done || echo "没有找到包文件"
         else
-          echo "❌ arch-packages 目录不存在"
-          echo "当前目录:"
-          ls -la
+            echo "❌ arch-packages 目录不存在"
         fi
         
     - name: Upload Arch packages
