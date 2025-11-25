@@ -13,10 +13,10 @@ jobs:
       - name: Create dist folder
         run: mkdir -p dist
 
-      - name: Download file
+      - name: Download and rename file
         run: |
           cd dist
-          curl -L -O "https://release-assets.githubusercontent.com/github-production-release-asset/1034855700/1fb80257-cf00-4bdd-b7df-0c2dcf923db1?sp=r&sv=2018-11-09&sr=b&spr=https&se=2025-11-25T06%3A07%3A11Z&rscd=attachment%3B+filename%3D02Engine-linux-arm64-1.1.8.deb&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2025-11-25T05%3A06%3A50Z&ske=2025-11-25T06%3A07%3A11Z&sks=b&skv=2018-11-09&sig=YINvHKw%2BD%2FZU1jUVwq1jcymmczS1p%2B8wnyd%2FRndMw%2BU%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc2NDA1MTMxMiwibmJmIjoxNzY0MDQ3NzEyLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.difzA893nomNlfO11KflQ2_m5B-m4JYWo6xB8qiEcjQ&response-content-disposition=attachment%3B%20filename%3D02Engine-linux-arm64-1.1.8.deb&response-content-type=application%2Foctet-stream"
+          curl -L -o "1.deb" "https://release-assets.githubusercontent.com/github-production-release-asset/1034855700/1fb80257-cf00-4bdd-b7df-0c2dcf923db1?sp=r&sv=2018-11-09&sr=b&spr=https&se=2025-11-25T06%3A07%3A11Z&rscd=attachment%3B+filename%3D02Engine-linux-arm64-1.1.8.deb&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2025-11-25T05%3A06%3A50Z&ske=2025-11-25T06%3A07%3A11Z&sks=b&skv=2018-11-09&sig=YINvHKw%2BD%2FZU1jUVwq1jcymmczS1p%2B8wnyd%2FRndMw%2BU%3D&jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmVsZWFzZS1hc3NldHMuZ2l0aHVidXNlcmNvbnRlbnQuY29tIiwia2V5Ijoia2V5MSIsImV4cCI6MTc2NDA1MTMxMiwibmJmIjoxNzY0MDQ3NzEyLCJwYXRoIjoicmVsZWFzZWFzc2V0cHJvZHVjdGlvbi5ibG9iLmNvcmUud2luZG93cy5uZXQifQ.difzA893nomNlfO11KflQ2_m5B-m4JYWo6xB8qiEcjQ&response-content-disposition=attachment%3B%20filename%3D02Engine-linux-arm64-1.1.8.deb&response-content-type=application%2Foctet-stream"
 
       - name: List downloaded files
         run: ls -la dist/
