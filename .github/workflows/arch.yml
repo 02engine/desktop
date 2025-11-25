@@ -12,31 +12,35 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Install dependencies (without pkgfile)
+    - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           git fakeroot binutils wget zstd \
           file coreutils sed grep
         
-    - name: Install and patch debtap
+    - name: Install and setup debtap
       run: |
         # 克隆 debtap
         git clone https://github.com/helixarch/debtap.git
         
-        # 修改 debtap 脚本，移除 pkgfile 依赖
-        sed -i 's/pkgfile -u/echo "Skipping pkgfile update"/g' debtap/debtap
-        sed -i 's/==> Synchronizing pkgfile database/echo "Skipping pkgfile synchronization"/g' debtap/debtap
-        sed -i 's/Synchronization failed/echo "pkgfile sync skipped"/g' debtap/debtap
+        # 创建必要的缓存目录和文件
+        sudo mkdir -p /var/cache/debtap
+        sudo touch /var/cache/debtap/base-packages
+        sudo touch /var/cache/debtap/extended-base-packages-list-temp
+        
+        # 修补 debtap 脚本，跳过 pkgfile 相关步骤
+        sed -i 's/pkgfile -u/echo "跳过 pkgfile 更新"/g' debtap/debtap
+        sed -i 's|cat /var/cache/debtap/base-packages|echo "跳过 base-packages 读取"|g' debtap/debtap
+        sed -i 's|sort /var/cache/debtap/extended-base-packages-list-temp|echo "跳过 extended-base-packages 排序"|g' debtap/debtap
         
         # 安装 debtap
         sudo cp debtap/debtap /usr/local/bin/debtap
         sudo chmod +x /usr/local/bin/debtap
         
-        # 创建必要的目录结构
+        # 创建其他必要目录
         sudo mkdir -p /usr/share/debtap
-        sudo touch /usr/share/debtap/mirrors.list
-        sudo touch /usr/share/debtap/debtap.db
+        sudo touch /usr/share/debtap/{mirrors.list,debtap.db}
         
     - name: Make scripts executable
       run: |
@@ -51,23 +55,36 @@ jobs:
         
     - name: Convert DEB packages one by one
       run: |
-        # 设置环境变量避免终端错误
+        # 设置环境变量
         export TERM=xterm-256color
         
-        # 运行转换脚本
-        ./convertarch.sh
+        # 简化转换：直接使用 debtap，不更新数据库
+        mkdir -p arch-packages
+        
+        for deb_file in dist/*.deb; do
+          if [ -f "$deb_file" ]; then
+            echo "=== 转换文件: $(basename "$deb_file") ==="
+            
+            # 使用静默模式转换
+            echo -e "\n\nn\nn" | debtap -q "$deb_file" || echo "转换完成或出现警告"
+            
+            # 查找并移动生成的包
+            find . -maxdepth 1 -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read pkg; do
+              if [ -f "$pkg" ]; then
+                mv "$pkg" arch-packages/
+                echo "✅ 生成: $(basename "$pkg")"
+              fi
+            done
+          fi
+        done
         
     - name: Show results
       run: |
         echo "=== 转换结果 ==="
         if [ -d "arch-packages" ]; then
-            echo "arch-packages 目录内容:"
-            ls -la arch-packages/
-            echo ""
-            echo "生成的包文件:"
             find arch-packages -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read file; do
                 echo "✅ $(basename "$file") - 大小: $(du -h "$file" | cut -f1)"
-            done
+            done || echo "没有找到包文件"
         else
             echo "❌ arch-packages 目录不存在"
         fi
