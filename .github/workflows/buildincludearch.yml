@@ -1,4 +1,4 @@
-name: Build (Manual)
+name: Build with arch
 
 on:
   workflow_dispatch:
@@ -12,12 +12,17 @@ jobs:
       with:
         submodules: recursive
         persist-credentials: false
+        
+        
     - name: Install debtap dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           git fakeroot binutils wget zstd \
-          file coreutils sed grep    
+          file coreutils sed grep   
+          
+            
+          
     - name: Install and setup debtap
       run: |
         # 克隆 debtap
@@ -40,30 +45,44 @@ jobs:
         # 创建其他必要目录
         sudo mkdir -p /usr/share/debtap
         sudo touch /usr/share/debtap/{mirrors.list,debtap.db}      
+        
+        
+        
     - name: Make scripts executable
       run: |
         chmod +x *.sh
         echo "脚本权限设置完成"
         ls -la
+        
+        
     - name: Install strip-nondeterminism
       run: sudo apt-get install strip-nondeterminism
+      
+      
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 22
+        
     - name: Clean cache
       run: npm cache clean --force --loglevel=info
+      
     - name: Install project dependencies
       run: npm install --force --loglevel=info
+      
     - name: Fetch
       run: npm run fetch
+      
     - name: Compile
       run: npm run webpack:prod
+      
     - name: Package
       run: |
         node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
+        
     - name: Print file tree
       run: node scripts/print-file-tree.js dist
+      
     - name: Run convertarch.sh script
       run: |
         # 设置环境变量
@@ -103,6 +122,7 @@ jobs:
           echo "当前目录:"
           ls -la
         fi
+        
     - name: Upload artifacts to GitHub Actions
       uses: actions/upload-artifact@v4
       with:
@@ -111,6 +131,7 @@ jobs:
           dist/*.deb
           dist/*.tar.gz
           dist/*.AppImage
+          arch-packages/*
 
   build-mac:
     runs-on: macos-latest
@@ -120,24 +141,32 @@ jobs:
       with:
         submodules: recursive
         persist-credentials: false
+        
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 22
+        
     - name: Clean cache
       run: npm cache clean --force --loglevel=info
+      
     - name: Install dependencies
       run: npm install --force --loglevel=info
+      
     - name: Fetch
       run: npm run fetch
+      
     - name: Compile
       run: npm run webpack:prod
+      
     - name: Package
       run: |
         node release-automation/build.js --mac --universal
         node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
+        
     - name: Print file tree
       run: node scripts/print-file-tree.js dist
+    
     - name: Upload artifacts to GitHub Actions
       uses: actions/upload-artifact@v4
       with:
@@ -162,10 +191,12 @@ jobs:
         submodules: recursive
         persist-credentials: false
         path: repo
+    
     - name: "Move repository to D: drive"
       run: |
         Copy-Item -Path repo -Destination D:\repo -Recurse
         Remove-Item -Path repo -Recurse -Force
+        
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
@@ -177,26 +208,33 @@ jobs:
       run: |
         npm config set cache D:\npm-cache
         npm config set prefix D:\npm-prefix
+        
     - name: Clean cache
       run: npm cache clean --force --loglevel=info
+      
     - name: Install dependencies
       working-directory: D:\repo
       run: npm install --force --loglevel=info
+      
     - name: Fetch
       working-directory: D:\repo
       run: npm run fetch
+      
     - name: Compile
       working-directory: D:\repo
       run: npm run webpack:prod
+      
     - name: Package
       working-directory: D:\repo
       run: |
         node release-automation/build.js --windows --microsoft-store --x64 --ia32 --arm64
         node release-automation/build.js --windows-portable --x64
         node release-automation/build.js --windows-legacy --ia32 --x64
+        
     - name: Print file tree
       working-directory: D:\repo
       run: node scripts/print-file-tree.js dist
+    
     - name: Upload artifacts to GitHub Actions
       uses: actions/upload-artifact@v4
       with:
