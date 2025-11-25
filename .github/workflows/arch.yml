@@ -11,8 +11,6 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        lfs: true  # 启用 LFS 支持
       
     - name: Install dependencies
       run: |
