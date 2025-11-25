@@ -51,7 +51,7 @@ update_debtap() {
     fi
 }
 
-# 查找生成的 Arch 包文件（修复版本）
+# 查找生成的 Arch 包文件
 find_arch_package() {
     local dir="$1"
     
@@ -123,15 +123,15 @@ convert_single_deb() {
     log_step "步骤 2/3: 执行 debtap 转换"
     log_info "执行: debtap -q '$current_deb'"
     
-    # 执行转换并捕获输出
-    if debtap -q "$current_def" 2>&1; then
+    # 修复：将 $current_def 改为 $current_deb
+    if debtap -q "$current_deb" 2>&1; then
         log_info "debtap 转换命令执行成功"
     else
         debtap_exit_code=$?
         log_warn "debtap 退出代码: $debtap_exit_code，继续检查结果..."
     fi
     
-    # 步骤3: 检查生成结果（修复查找逻辑）
+    # 步骤3: 检查生成结果
     log_step "步骤 3/3: 检查生成结果"
     
     log_info "当前目录文件列表:"
