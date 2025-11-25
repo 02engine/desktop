@@ -52,24 +52,7 @@ jobs:
         chmod +x *.sh
         echo "脚本权限设置完成"
         ls -la
-        
-    - name: Check environment
-      run: |
-        echo "=== 环境检查 ==="
-        echo "当前目录: $(pwd)"
-        echo "脚本列表:"
-        ls -la *.sh scripts/*.sh 2>/dev/null || echo "没有找到脚本"
-        echo ""
-        echo "dist 目录内容:"
-        ls -la dist/ 2>/dev/null || echo "dist 目录不存在"
-        echo ""
-        echo "文件类型检查:"
-        for file in dist/*.deb 2>/dev/null; do
-          if [ -f "$file" ]; then
-            echo "$(basename "$file"): $(file -b "$file") - 大小: $(ls -lh "$file" | cut -d' ' -f5)"
-          fi
-        done
-        
+
     - name: Run convertarch.sh script
       run: |
         # 设置环境变量
