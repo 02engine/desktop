@@ -50,7 +50,6 @@ jobs:
     - name: Make scripts executable
       run: |
         chmod +x *.sh
-        chmod +x scripts/*.sh
         echo "脚本权限设置完成"
         ls -la
         
