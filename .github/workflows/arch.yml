@@ -12,12 +12,16 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
-          bash binutils fakeroot git wget dpkg coreutils
-          
+          git fakeroot binutils wget zstd \
+          pkgfile ncurses-term
+        
+        # 初始化 pkgfile
+        sudo pkgfile -u
+        
     - name: Install debtap
       run: |
         git clone https://github.com/helixarch/debtap.git
