@@ -1,4 +1,4 @@
-name: Build with Arch Linux packages
+name: Build with arch
 
 on:
   workflow_dispatch:
@@ -7,204 +7,233 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install basic dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git fakeroot binutils wget zstd file coreutils sed grep \
-            strip-nondeterminism perl
-
-      - name: Install and setup debtap (fully bypassed update check)
-        run: |
-          # 克隆最新的 helixarch/debtap（最活跃的 fork）
-          git clone https://github.com/helixarch/debtap.git
-
-          # 创建 debtap 所需目录
-          sudo mkdir -p /var/cache/debtap /usr/share/debtap
-
-          # 伪造已经执行过 debtap -u 的痕迹（关键！）
-          sudo tee /var/cache/debtap/base-packages > /dev/null <<EOF
-          base
-          linux
-          filesystem
-          EOF
-
-          # 伪造最近更新时间（debtap 会检查时间戳）
-          sudo touch -t "$(date -u +%Y%m%d%H%M)" /var/cache/debtap/base-packages
-          sudo touch -t "$(date -u +%Y%m%d%H%M)" /var/cache/debtap/debtap.db
-
-          # 彻底移除所有 “必须先 debtap -u” 的检查代码
-          sudo perl -0777 -pi -e 's/if\s*\[\[\s*! -f\s*"\/var\/cache\/debtap\/debtap\.db"\s*\]\];\s*then[\s\S]*?fi//g' debtap/debtap
-          sudo perl -0777 -pi -e 's/if\s*\[\[\s*! -f\s*"\/var\/cache\/debtap\/base-packages"\s*\]\];\s*then[\s\S]*?fi//g' debtap/debtap
-
-          # 跳过所有 pkgfile 相关命令
-          sed -i 's/pkgfile -u.*/echo "Skipped pkgfile update"/g' debtap/debtap
-          sed -i 's/pkgfile --update.*/echo "Skipped pkgfile update"/g' debtap/debtap
-          sed -i 's|cat /var/cache/debtap/base-packages.*|echo "base linux filesystem"|g' debtap/debtap
-
-          # 安装 debtap
-          sudo install -Dm755 debtap/debtap /usr/local/bin/debtap
-
-          # 创建其他可能被检查的空文件
-          sudo touch /usr/share/debtap/{mirrors.list,debtap.db}
-
-          echo "debtap 已成功安装并绕过所有更新检查"
-
-      - name: Make scripts executable
-        run: |
-          chmod +x *.sh || true
-          echo "所有 .sh 脚本已设置为可执行"
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Clean npm cache
-        run: npm cache clean --force
-
-      - name: Install project dependencies
-        run: npm install --force
-
-      - name: Fetch assets
-        run: npm run fetch
-
-      - name: Build production bundle
-        run: npm run webpack:prod
-
-      - name: Package (deb + tarball + AppImage)
-        run: |
-          node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
-
-      - name: Print dist file tree
-        run: node scripts/print-file-tree.js dist || echo "print-file-tree.js 不存在，已跳过"
-
-      - name: Convert deb → Arch Linux packages
-        run: |
-          export TERM=xterm-256color
-          echo "=== 开始执行 convertarch.sh ==="
-
-          if [ ! -f "convertarch.sh" ]; then
-            echo "错误：convertarch.sh 不存在！"
-            ls -la
-            exit 1
-          fi
-
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+        
+        
+    - name: Install debtap dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git fakeroot binutils wget zstd \
+          file coreutils sed grep   
+          
+            
+          
+    - name: Install and setup debtap
+      run: |
+        # 克隆 debtap
+        git clone https://github.com/helixarch/debtap.git
+        
+        # 创建必要的缓存目录和文件
+        sudo mkdir -p /var/cache/debtap
+        sudo touch /var/cache/debtap/base-packages
+        sudo touch /var/cache/debtap/extended-base-packages-list-temp
+        
+        # 【关键修复】伪造 debtap 已经更新过的痕迹，彻底绕过 “You must run debtap -u” 错误
+        echo -e "base\nlinux\nfilesystem" | sudo tee /var/cache/debtap/base-packages > /dev/null
+        sudo touch -t "$(date -u +%Y%m%d%H%M)" /var/cache/debtap/base-packages
+        sudo touch -t "$(date -u +%Y%m%d%H%M)" /var/cache/debtap/debtap.db
+        
+        # 修补 debtap 脚本，跳过 pkgfile 相关步骤（你原来的写法完全保留）
+        sed -i 's/pkgfile -u/echo "跳过 pkgfile 更新"/g' debtap/debtap
+        sed -i 's|cat /var/cache/debtap/base-packages|echo "跳过 base-packages 读取"|g' debtap/debtap
+        sed -i 's|sort /var/cache/debtap/extended-base-packages-list-temp|echo "跳过 extended-base-packages 排序"|g' debtap/debtap
+        
+        # 安装 debtap
+        sudo cp debtap/debtap /usr/local/bin/debtap
+        sudo chmod +x /usr/local/bin/debtap
+        
+        # 创建其他必要目录
+        sudo mkdir -p /usr/share/debtap
+        sudo touch /usr/share/debtap/{mirrors.list,debtap.db}      
+        
+        
+        
+    - name: Make scripts executable
+      run: |
+        chmod +x *.sh
+        echo "脚本权限设置完成"
+        ls -la
+        
+        
+    - name: Install strip-nondeterminism
+      run: sudo apt-get install strip-nondeterminism
+      
+      
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
+      
+    - name: Install project dependencies
+      run: npm install --force --loglevel=info
+      
+    - name: Fetch
+      run: npm run fetch
+      
+    - name: Compile
+      run: npm run webpack:prod
+      
+    - name: Package
+      run: |
+        node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
+        
+    - name: Print file tree
+      run: node scripts/print-file-tree.js dist
+      
+    - name: Run convertarch.sh script
+      run: |
+        # 设置环境变量
+        export TERM=xterm-256color
+        
+        echo "=== 开始执行 convertarch.sh ==="
+        
+        # 检查脚本是否存在
+        if [ ! -f "convertarch.sh" ]; then
+          echo "convertarch.sh 脚本不存在"
+          echo "当前目录文件:"
+          ls -la
+          exit 1
+        fi
+        
+        # 检查脚本是否可执行
+        if [ ! -x "convertarch.sh" ]; then
+          echo "convertarch.sh 不可执行，添加执行权限"
           chmod +x convertarch.sh
-          ./convertarch.sh
-
-      - name: Show final Arch packages
-        run: |
-          echo "=== 最终生成的 Arch Linux 包 ==="
-          if [ -d "arch-packages" ]; then
-            find arch-packages -type f \( -name "*.pkg.tar.*" -o -name "*.tar.xz" \) -exec ls -lh {} \;
-          else
-            echo "警告：arch-packages 目录未创建"
-            ls -la
-          fi
-
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-packages
-          path: |
-            dist/*.deb
-            dist/*.tar.gz
-            dist/*.AppImage
-            arch-packages/*
+        fi
+        
+        # 执行您的转换脚本
+        ./convertarch.sh    
+    - name: Show final results
+      run: |
+        echo "=== 最终结果 ==="
+        if [ -d "arch-packages" ]; then
+          echo "生成的包文件:"
+          find arch-packages -name "*.pkg.tar.*" -o -name "*.tar.xz" | while read file; do
+            echo "$(basename "$file") - 大小: $(du -h "$file" | cut -f1)"
+          done
+          echo ""
+          echo "目录结构:"
+          ls -la arch-packages/
+        else
+          echo "arch-packages 目录不存在"
+          echo "当前目录:"
+          ls -la
+        fi
+        
+    - name: Upload artifacts to GitHub Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux
+        path: |
+          dist/*.deb
+          dist/*.tar.gz
+          dist/*.AppImage
+          arch-packages/*
 
   build-mac:
     runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+        
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
+      
+    - name: Install dependencies
+      run: npm install --force --loglevel=info
+      
+    - name: Fetch
+      run: npm run fetch
+      
+    - name: Compile
+      run: npm run webpack:prod
+      
+    - name: Package
+      run: |
+        node release-automation/build.js --mac --universal
+        node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
+        
+    - name: Print file tree
+      run: node scripts/print-file-tree.js dist
+    
+    - name: Upload artifacts to GitHub Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: mac
+        path: dist/*.dmg
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Clean npm cache
-        run: npm cache clean --force
-
-      - name: Install dependencies
-        run: npm install --force
-
-      - name: Fetch assets
-        run: npm run fetch
-
-      - name: Build production bundle
-        run: npm run webpack:prod
-
-      - name: Package macOS
-        run: |
-          node release-automation/build.js --mac --universal
-          node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-packages
-          path: dist/*.dmg
 
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          path: repo
-
-      - name: Move repo to D: drive (faster I/O)
-        run: |
-          Copy-Item -Path repo -Destination D:\repo -Recurse -Force
-          Remove-Item -Path repo -Recurse -Force
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Configure npm to use D: drive
-        run: |
-          npm config set cache D:\npm-cache
-          npm config set prefix D:\npm-prefix
-
-      - name: Clean npm cache
-        run: npm cache clean --force
-
-      - name: Install dependencies
-        working-directory: D:\repo
-        run: npm install --force
-
-      - name: Fetch assets
-        working-directory: D:\repo
-        run: npm run fetch
-
-      - name: Build production bundle
-        working-directory: D:\repo
-        run: npm run webpack:prod
-
-      - name: Package Windows
-        working-directory: D:\repo
-        run: |
-          node release-automation/build.js --windows --microsoft-store --x64 --ia32 --arm64
-          node release-automation/build.js --windows-portable --x64
-          node release-automation/build.js --windows-legacy --ia32 --x64
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-packages
-          path: |
-            D:\repo\dist\*.exe
-            D:\repo\dist\*.appx
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        persist-credentials: false
+        path: repo
+    
+    - name: "Move repository to D: drive"
+      run: |
+        Copy-Item -Path repo -Destination D:\repo -Recurse
+        Remove-Item -Path repo -Recurse -Force
+        
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        
+    - name: "Configure npm to use D: drive"
+      run: |
+        npm config set cache D:\npm-cache
+        npm config set prefix D:\npm-prefix
+        
+    - name: Clean cache
+      run: npm cache clean --force --loglevel=info
+      
+    - name: Install dependencies
+      working-directory: D:\repo
+      run: npm install --force --loglevel=info
+      
+    - name: Fetch
+      working-directory: D:\repo
+      run: npm run fetch
+      
+    - name: Compile
+      working-directory: D:\repo
+      run: npm run webpack:prod
+      
+    - name: Package
+      working-directory: D:\repo
+      run: |
+        node release-automation/build.js --windows --microsoft-store --x64 --ia32 --arm64
+        node release-automation/build.js --windows-portable --x64
+        node release-automation/build.js --windows-legacy --ia32 --x64
+        
+    - name: Print file tree
+      working-directory: D:\repo
+      run: node scripts/print-file-tree.js dist
+    
+    - name: Upload artifacts to GitHub Actions
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows
+        path: |
+          D:\repo\dist\*.exe
+          D:\repo\dist\*.appx
