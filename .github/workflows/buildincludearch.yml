@@ -43,7 +43,6 @@ jobs:
       - name: Print file tree
         run: node scripts/print-file-tree.js dist
 
-      # 上传deb包和convertarch.sh脚本
       - name: Upload artifacts for Arch conversion
         uses: actions/upload-artifact@v4
         with:
@@ -61,14 +60,17 @@ jobs:
       options: --privileged
 
     steps:
-      # 1. 准备Arch环境
+      # 1. 准备Arch环境（修复包名问题）
       - name: Prepare Arch environment
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo git base-devel namcap bsdtar zstd
+          # 安装必要的依赖包（bsdtar在libarchive包中）
+          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
           useradd -m -s /bin/bash builduser
           echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
           echo 'export TERM=xterm' >> /etc/bash.bashrc
+          # 验证bsdtar是否安装成功
+          bsdtar --version && echo "bsdtar安装成功"
 
       # 2. 安装debtap
       - name: Install debtap from AUR
@@ -83,23 +85,31 @@ jobs:
           debtap -u || debtap -u || true
           EOF
 
-      # 3. 下载包含deb包和脚本的制品
+      # 3. 下载制品
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: arch-conversion-artifacts
           path: /workspace
 
-      # 4. 准备工作目录和脚本
+      # 4. 准备工作目录
       - name: Setup workspace
         run: |
           cd /workspace
           ls -la
-          chmod +x convertarch.sh
+          # 确保脚本存在且有执行权限
+          if [ -f "convertarch.sh" ]; then
+            chmod +x convertarch.sh
+            echo "✅ convertarch.sh脚本准备就绪"
+          else
+            echo "❌ convertarch.sh脚本未找到"
+            exit 1
+          fi
+          # 创建dist目录并移动deb包
           mkdir -p dist
-          mv *.deb dist/ 2>/dev/null || true
-          echo "当前目录结构:"
-          find . -type f -name "*.deb" -o -name "*.sh" | sort
+          find . -name "*.deb" -exec mv {} dist/ \; 2>/dev/null || true
+          echo "当前deb包:"
+          find dist -name "*.deb" | sort
 
       # 5. 执行转换脚本
       - name: Run deb → Arch conversion
@@ -112,10 +122,13 @@ jobs:
       - name: Verify generated packages
         working-directory: /workspace
         run: |
-          echo "生成的Arch包:"
+          echo "=== 生成的Arch包 ==="
           find . -name "*.pkg.tar.zst" -ls 2>/dev/null || echo "未找到Arch包"
-          echo "最终目录结构:"
-          ls -la arch-packages/ 2>/dev/null || ls -la
+          echo "=== arch-packages目录 ==="
+          ls -la arch-packages/ 2>/dev/null || echo "arch-packages目录不存在"
+          echo "=== 当前工作目录 ==="
+          pwd
+          ls -la
 
       # 7. 上传最终产物
       - name: Upload Arch packages
@@ -125,4 +138,4 @@ jobs:
           path: |
             /workspace/arch-packages/*.pkg.tar.zst
             /workspace/dist/*.deb
-          
+        
