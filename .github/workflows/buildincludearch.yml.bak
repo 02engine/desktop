@@ -60,18 +60,7 @@ jobs:
       options: --privileged   # debtap 需要 fakeroot
 
     steps:
-      # 关键修复：先把系统和 nobody 的 sudo 彻底修好（这几行必须最前面）
-      - name: Fix official image sudo/PAM hell (MUST RUN FIRST)
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo pkgfile namcap git base-devel zstd libarchive
-          echo "nobody ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nobody
-          chmod 440 /etc/sudoers.d/nobody
-          # 修复 PAM account 缺失，否则 sudo 直接报 Account expired
-          sed -i '/^account.*pam_unix.so/a account    required   pam_permit.so' /etc/pam.d/sudo
-          sed -i '/^account.*pam_unix.so/a account    required   pam_permit.so' /etc/pam.d/sudo-i 2>/dev/null || true
-
-      # 你原来的步骤一个字都不改，直接粘
+      # 只安装确实缺失的几个包（base-devel 镜像已经自带大量工具）
       - name: Install missing tools
         run: |
           pacman -Sy --noconfirm --needed git sudo zstd libarchive
