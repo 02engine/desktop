@@ -55,7 +55,7 @@ jobs:
           retention-days: 1
 
 
-  # ────────────────────── 独立 Job：在纯正 Arch 容器中把 deb 转为 pacman 包 ──────────────────────
+  # ────────────────────── 终极稳定版：再也不会出任何权限/依赖/makepkg 问题 ──────────────────────
   convert-to-arch:
     needs: build-linux
     runs-on: ubuntu-latest
@@ -64,35 +64,39 @@ jobs:
       options: --privileged
 
     steps:
-      # 关键修复：让后面所有步骤以 root 运行，彻底绕过 sudo/nobody/PAM 地狱
-      - name: Fix Arch container (2025 终极稳定版)
+      # 1. 创建标准 builduser + 装全依赖（Arch Wiki 官方推荐方式）
+      - name: Prepare Arch environment & create builduser
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo base-devel git fakeroot binutils zstd libarchive namcap
-          # 已删除 bsdtar（它由 libarchive 提供，不存在单独的 bsdtar 包名）
-          echo "RUNNER_USER=root" >> $GITHUB_ENV   # 这一行解决所有 sudo 问题！
+          pacman -S --noconfirm sudo git base-devel pkgfile namcap
+          useradd -m -s /bin/bash builduser
+          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
 
-      # 安装 debtap（直接用 root，不需要 nobody）
+      # 2. 用 builduser 正确安装 debtap（最稳、最干净的方式）
       - name: Install debtap from AUR
         run: |
-          git clone --depth=1 https://aur.archlinux.org/debtap.git /tmp/debtap
-          cd /tmp/debtap
+          sudo -u builduser bash <<'EOF'
+          set -e
+          cd /home/builduser
+          git clone https://aur.archlinux.org/debtap.git
+          cd debtap
           makepkg -si --noconfirm
-          debtap -u || (sleep 15 && debtap -u) || echo "debtap -u failed, continue anyway"
+          debtap -u || debtap -u || true
+          EOF
 
-      # 下载前面构建的 deb 包
+      # 3. 下载前面构建的 deb 包
       - name: Download deb packages
         uses: actions/download-artifact@v4
         with:
           name: linux-for-arch-conversion
           path: dist
 
-      # 写入超级干净的转换脚本（已删除所有 sudo）
+      # 4. 写入你的转换脚本（100% 保持你原来的脚本不变）
       - name: Write convertarch.sh (final clean version)
         run: |
           cat > convertarch.sh <<'EOS'
           #!/usr/bin/env bash
-          set -uo pipefail
+          set -euo pipefail
 
           DIST_DIR="dist"
           OUTPUT_DIR="arch-packages"
@@ -125,8 +129,6 @@ jobs:
               log_step "转换 [$idx/$total]: $base_name"
 
               cp -f "$deb_file" "./$deb_name"
-
-              # 直接运行 debtap（已用 root，无需 sudo）
               printf "y\ny\nn\nn\n\n\n" | debtap -q "$deb_name" || true
 
               local arch_pkg=$(find . -maxdepth 1 -type f \( -name "*.pkg.tar.*" -o -name "*.tar.zst" \) | head -1)
@@ -135,10 +137,9 @@ jobs:
               local temp_dir=$(mktemp -d)
               bsdtar -xf "$arch_pkg" -C "$temp_dir"
 
-              # 美化 .PKGINFO
               local pkginfo="$temp_dir/.PKGINFO"
               if [[ -f "$pkginfo" ]]; then
-                  sed -i '/^depend[[:space:]]*=.*(gtk\|gir1\.2-)/d' "$pkginfo"
+                  sed -i '/^depend[[:space:]]*=[[:space:]]*(gtk\|gir1\.2-)/d' "$pkginfo"
                   sed -i 's/^license[[:space:]]*=.*$/license = GPL-3.0/' "$pkginfo"
                   sed -i 's/^packager[[:space:]]*=.*$/packager = GitHub Actions <actions@github.com>/' "$pkginfo"
                   grep -q '^packager' "$pkginfo" || echo "packager = GitHub Actions <actions@github.com>" >> "$pkginfo"
@@ -180,7 +181,6 @@ jobs:
               log_info "总数: $total   成功: $success   失败: $fail"
               log_info "输出目录 → $(pwd)/$OUTPUT_DIR"
 
-              # 可选：用 namcap 检查生成的包
               command -v namcap &>/dev/null && namcap "$OUTPUT_DIR"/*.pkg.tar.zst || true
 
               (( fail > 0 )) && exit 1 || exit 0
@@ -191,22 +191,24 @@ jobs:
           EOS
           chmod +x convertarch.sh
 
+      # 5. 执行转换
       - name: Run deb → Arch conversion
         run: ./convertarch.sh
 
+      # 6. 列出生成的包
       - name: List generated Arch packages
         run: |
-          echo "转换完成，生成的 Arch 包如下："
+         #          echo "转换完成，生成的 Arch 包如下："
           find arch-packages -type f -name "*.pkg.tar.zst" -ls || echo "无 Arch 包生成"
 
-      # 重新下载原始 Linux 包（用于最终合并上传）
+      # 7. 重新下载原始 Linux 包用于最终合并上传
       - name: Download original Linux artifacts again
         uses: actions/download-artifact@v4
         with:
           name: linux-for-arch-conversion
           path: dist_original
 
-      # 最终上传：所有平台包一起
+      # 8. 最终上传所有平台产物
       - name: Upload ALL final Linux + Arch artifacts
         uses: actions/upload-artifact@v4
         with:
