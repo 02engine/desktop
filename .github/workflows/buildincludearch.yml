@@ -60,21 +60,19 @@ jobs:
       options: --privileged
 
     steps:
-      # 1. 准备Arch环境（修复包名问题）
+      # 1. 准备Arch环境
       - name: Prepare Arch environment
         run: |
           pacman -Syu --noconfirm
-          # 安装必要的依赖包（bsdtar在libarchive包中）
           pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
           useradd -m -s /bin/bash builduser
           echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
           echo 'export TERM=xterm' >> /etc/bash.bashrc
-          # 验证bsdtar是否安装成功
-          bsdtar --version && echo "bsdtar安装成功"
 
-      # 2. 安装debtap
-      - name: Install debtap from AUR
+      # 2. 安装debtap并以root权限运行更新
+      - name: Install and update debtap
         run: |
+          # 安装debtap
           sudo -u builduser bash <<'EOF'
           set -e
           export TERM=xterm
@@ -82,8 +80,15 @@ jobs:
           git clone https://aur.archlinux.org/debtap.git
           cd debtap
           makepkg -si --noconfirm
-          debtap -u || debtap -u || true
           EOF
+          
+          # 以root权限运行debtap更新（关键修复）
+          echo "正在以root权限运行debtap更新..."
+          debtap -u
+          echo "debtap更新完成"
+          
+          # 验证debtap是否正常工作
+          debtap --version || echo "debtap版本检查失败，但继续执行"
 
       # 3. 下载制品
       - name: Download artifacts
@@ -92,41 +97,44 @@ jobs:
           name: arch-conversion-artifacts
           path: /workspace
 
-      # 4. 准备工作目录
-      - name: Setup workspace
+      # 4. 准备工作目录和修复脚本中的debtap调用
+      - name: Setup workspace and fix script
         run: |
           cd /workspace
           ls -la
-          # 确保脚本存在且有执行权限
-          if [ -f "convertarch.sh" ]; then
-            chmod +x convertarch.sh
-            echo "✅ convertarch.sh脚本准备就绪"
-          else
-            echo "❌ convertarch.sh脚本未找到"
-            exit 1
-          fi
-          # 创建dist目录并移动deb包
+          chmod +x convertarch.sh
           mkdir -p dist
           find . -name "*.deb" -exec mv {} dist/ \; 2>/dev/null || true
-          echo "当前deb包:"
+          
+          # 修改脚本，确保使用root权限运行debtap
+          if [ -f "convertarch.sh" ]; then
+            # 备份原脚本
+            cp convertarch.sh convertarch.sh.backup
+            # 修改debtap调用，使用sudo或直接运行（因为我们在root环境）
+            sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
+            echo "✅ 脚本已调整以适应root环境"
+          fi
+          
+          echo "可用的deb包:"
           find dist -name "*.deb" | sort
 
-      # 5. 执行转换脚本
+      # 5. 执行转换脚本（在root环境下）
       - name: Run deb → Arch conversion
         working-directory: /workspace
         run: |
           export TERM=xterm
+          # 确保在root权限下运行
           ./convertarch.sh
 
       # 6. 检查生成结果
       - name: Verify generated packages
         working-directory: /workspace
         run: |
-          echo "=== 生成的Arch包 ==="
-          find . -name "*.pkg.tar.zst" -ls 2>/dev/null || echo "未找到Arch包"
+          echo "=== 转换结果 ==="
+          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || echo "未找到Arch包"
           echo "=== arch-packages目录 ==="
           ls -la arch-packages/ 2>/dev/null || echo "arch-packages目录不存在"
-          echo "=== 当前工作目录 ==="
+          echo "=== 工作目录内容 ==="
           pwd
           ls -la
 
@@ -138,4 +146,4 @@ jobs:
           path: |
             /workspace/arch-packages/*.pkg.tar.zst
             /workspace/dist/*.deb
-        
+          
