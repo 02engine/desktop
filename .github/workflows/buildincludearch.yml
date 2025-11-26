@@ -7,262 +7,246 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
 
-    - name: Install strip-nondeterminism
-      run: sudo apt-get install strip-nondeterminism
+      - name: Install strip-nondeterminism
+        run: sudo apt-get update && sudo apt-get install -y strip-nondeterminism
 
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-    - name: Clean cache
-      run: npm cache clean --force --loglevel=info
+      - name: Clean cache
+        run: npm cache clean --force --loglevel=info
 
-    - name: Install dependencies
-      run: npm install --force --loglevel=info
+      - name: Install dependencies
+        run: npm install --force --loglevel=info
 
-    - name: Fetch
-      run: npm run fetch
+      - name: Fetch
+        run: npm run fetch
 
-    - name: Compile
-      run: npm run webpack:prod
+      - name: Compile
+        run: npm run webpack:prod
 
-    - name: Package (deb + tar.gz + AppImage)
-      run: |
-        node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
+      - name: Package (deb + tar.gz + AppImage)
+        run: |
+          node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
 
-    - name: Print file tree
-      run: node scripts/print-file-tree.js dist
+      - name: Print file tree
+        run: node scripts/print-file-tree.js dist
 
-    # ────────────────────────────────
-    #  新增：上传原始 Linux 构建产物（供后面 Arch 转换步骤下载）
-    # ────────────────────────────────
-    - name: Upload Linux artifacts (intermediate)
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-for-arch-conversion
-        path: |
-          dist/*.deb
-          dist/*.tar.gz
-          dist/*.AppImage
-        retention-days: 1   # 只需要留到本 job 结束
+      # 上传中间产物供 Arch 转换使用
+      - name: Upload Linux artifacts (intermediate)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-for-arch-conversion
+          path: |
+            dist/*.deb
+            dist/*.tar.gz
+            dist/*.AppImage
+          retention-days: 1
 
-  # ────────────────────────────────
-  #  新增独立 job：纯正 Arch Linux 环境进行 deb → pacman 转换
-  # ────────────────────────────────
+  # 独立 Job：在纯正 Arch Linux 容器中把 deb 转为 pacman 包
   convert-to-arch:
     needs: build-linux
     runs-on: ubuntu-latest
     container:
-      image: archlinux:base-devel   # 官方纯净 Arch 镜像，已经包含 pacman 和 base-devel
-      options: --privileged         # debtap 需要 fakeroot
+      image: archlinux:base-devel
+      options: --privileged   # debtap 需要 fakeroot
 
     steps:
-    - name: Install essential tools (pacman sync)
-      run: |
-        pacman -Syu --noconfirm base-devel git sudo zstd bsdtar
+      # 只安装确实缺失的几个包（base-devel 镜像已经自带大量工具）
+      - name: Install missing tools
+        run: |
+          pacman -Sy --noconfirm --needed git sudo zstd libarchive
 
-    # 给 nobody 用户 sudo 权限（debtap 需要）
-    - name: Allow nobody to use fakeroot
-      run: |
-        echo "nobody ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/nobody
+      # 给 nobody 用户加 sudo 权限（debtap 需要 fakeroot）
+      - name: Allow nobody to use fakeroot
+        run: |
+          echo "nobody ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nobody
 
-    - name: Install debtap (AUR)
-      run: |
-        sudo -u nobody bash <<EOF
-        set -e
-        git clone https://aur.archlinux.org/debtap.git /tmp/debtap
-        cd /tmp/debtap
-        makepkg -si --noconfirm
-        debtap -u   # 更新 debtap 数据库
-        EOF
+      # 从 AUR 安装 debtap
+      - name: Install debtap (AUR)
+        run: |
+          sudo -u nobody bash <<EOF
+          set -e
+          git clone https://aur.archlinux.org/debtap.git /tmp/debtap
+          cd /tmp/debtap
+          makepkg -si --noconfirm
+          debtap -u   # 更新 debtap 数据库
+          EOF
 
-    - name: Download deb packages from previous job
-      uses: actions/download-artifact@v4
-      with:
-        name: linux-for-arch-conversion
-        path: dist
+      # 下载前面 job 产生的 deb 包
+      - name: Download deb packages
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-for-arch-conversion
+          path: dist
 
-    - name: Put convertarch.sh into workspace
-      run: |
-        cat > convertarch.sh <<'EOS'
-        #!/bin/bash
-        #（你提供的完整脚本原封不动贴在这里）
-        # 注意：下面是完整脚本，我直接粘贴你给的那一大段
-        ${{steps.convertarch.content}}   # 为了可读性，这里用占位，实际直接粘贴完整脚本
-        EOS
-        chmod +x convertarch.sh
+      # 写入完整的转换脚本（已修复 bsdtar 调用）
+      - name: Write convertarch.sh
+        run: |
+          cat > convertarch.sh <<'EOS'
+          #!/usr/bin/env bash
+          set +e
+          set -uo pipefail
+          IFS=$'\n\t'
 
-    # 下面把你的完整脚本直接写进去（为了排版，这里用 heredoc）
-    - name: Write convertarch.sh (full script)
-      run: |
-        cat > convertarch.sh <<'EOS'
-        #! /bin/bash
-        set +e
-        set -uo pipefail
-        IFS=$'\n\t'
+          DIST_DIR="dist"
+          OUTPUT_DIR="arch-packages"
 
-        DIST_DIR="dist"
-        OUTPUT_DIR="arch-packages"
+          MAIN_COLOR='\033[0;36m'
+          RED='\033[0;31m'
+          GREEN='\033[0;32m'
+          YELLOW='\033[1;33m'
+          NC='\033[0m'
 
-        MAIN_COLOR='\033[0;36m'
-        RED='\033[0;31m'
-        GREEN='\033[0;32m'
-        YELLOW='\033[1;33m'
-        NC='\033[0m'
+          log_info()  { echo -e "${MAIN_COLOR}[INFO]${NC}  $1"; }
+          log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
+          log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+          log_step()  { echo -e "${MAIN_COLOR}[STEP]${NC}  $1"; }
+          log_sep()   { echo -e "${MAIN_COLOR}----------------------------------------${NC}"; }
+          safe_run()  { "$@" 2>/dev/null || true; }
 
-        log_info()  { echo -e "${MAIN_COLOR}[INFO]${NC}  $1"; }
-        log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
-        log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-        log_step()  { echo -e "${MAIN_COLOR}[STEP]${NC}  $1"; }
-        log_sep()   { echo -e "${MAIN_COLOR}----------------------------------------${NC}"; }
-        safe_run()  { "$@" 2>/dev/null || true; }
+          check_prerequisites() {
+              log_step "环境检查"
+              [[ -d "$DIST_DIR" ]] || { log_error "dist 目录不存在"; exit 1; }
+              command -v debtap &>/dev/null || { log_error "debtap 未安装"; exit 1; }
+              command -v bsdtar &>/dev/null || { log_error "bsdtar 未安装（libarchive 包）"; exit 1; }
+              mkdir -p "$OUTPUT_DIR"
+              safe_run rm -f .PKGINFO .INSTALL .MTREE *.deb *.pkg.tar.* *.tar.*
+              safe_run rm -rf pkg/ src/
+              log_sep
+          }
 
-        check_prerequisites() {
-            log_step "环境检查"
-            [[ -d "$DIST_DIR" ]] || { log_error "dist 目录不存在"; exit 1; }
-            command -v debtap &>/dev/null || { log_error "debtap 未安装，请先安装 debtap"; exit 1; }
-            [[ -d "$OUTPUT_DIR" ]] || mkdir -p "$OUTPUT_DIR"
-            safe_run rm -f .PKGINFO .INSTALL .MTREE *.deb *.pkg.tar.* *.tar.*
-            safe_run rm -rf pkg/ src/
-            log_sep
-        }
+          get_deb_packages() { find "$DIST_DIR" -type f -name "*.deb" -print0; }
 
-        get_deb_packages() { find "$DIST_DIR" -type f -name "*.deb" -print0; }
+          convert_single_package() {
+              local deb_file="$1"
+              local idx="$2"
+              local total="$3"
+              local deb_name="${deb_file##*/}"
+              local base_name="${deb_name%.deb}"
 
-        convert_single_package() {
-            local deb_file="$1"
-            local idx="$2"
-            local total="$3"
+              log_step "转换中 [$idx/$total]: $base_name"
 
-            local deb_name="${deb_file##*/}"
-            local base_name="${deb_name%.deb}"
+              cp -f "$deb_file" "./$deb_name" || { log_error "复制失败"; return 1; }
 
-            log_step "转换中 [$idx/$total]: $base_name"
+              # debtap 交互输入：y y n n 回车回车
+              local input=$(mktemp)
+              printf "y\ny\nn\nn\n\n\n" > "$input"
+              debtap -q "$deb_name" < "$input" || true
+              rm -f "$input"
 
-            cp -f "$deb_file" "./$deb_name" || { log_error "文件复制失败"; return 1; }
+              local arch_pkg=$(find . -maxdepth 1 \( -name "*.pkg.tar.*" -o -name "*.tar.xz" -o -name "*.tar.zst" \) -type f -print -quit)
+              [[ -z "$arch_pkg" ]] && { log_error "debtap 未生成包"; safe_run rm -f "$deb_name"; return 1; }
 
-            local input=$(mktemp)
-            printf "y\ny\nn\nn\n\n\n" > "$input"
-            debtap -q "$deb_name" < "$input" || true
-            rm -f "$input"
+              local temp_dir=$(mktemp -d)
+              if ! bsdtar -xf "$arch_pkg" -C "$temp_dir"; then
+                  log_warn "解包失败，直接保留原始包"
+                  mv "$arch_pkg" "$OUTPUT_DIR/${base_name}-arch-$(date +%Y%m%d-%H%M).pkg.tar.zst"
+                  rm -rf "$temp_dir"
+                  safe_run rm -f "$deb_name"
+                  return 0
+              fi
 
-            local arch_pkg=$(find . -maxdepth 1 \( -name "*.pkg.tar.*" -o -name "*.tar.xz" -o -name "*.tar.zst" \) -type f -print -quit)
-            [[ -z "$arch_pkg" ]] && { log_error "转换未生成 Arch 包"; safe_run rm -f "$deb_name"; return 1; }
+              # 优化 .PKGINFO
+              local pkginfo="$temp_dir/.PKGINFO"
+              if [[ -f "$pkginfo" ]]; then
+                  sed -i '/^depend[[:space:]]*=[[:space:]]*gtk$/d' "$pkginfo"
+                  sed -i '/depend[[:space:]]*=[[:space:]]*gir1.2-/d' "$pkginfo"
+                  sed -i 's/^license[[:space:]]*=.*$/license = GPL-3.0/' "$pkginfo"
+                  sed -i 's/^packager[[:space:]]*=.*$/packager = GitHub Actions <actions@github.com>/' "$pkginfo"
+                  grep -q '^packager' "$pkginfo" || echo "packager = GitHub Actions <actions@github.com>" >> "$pkginfo"
+              fi
 
-            local temp_dir=$(mktemp -d)
-            if ! bsdtar -xf "$arch_pkg" -C "$temp_dir" 2>/dev/null; then
-                log_warn "解包失败，直接保留原包"
-                mv "$arch_pkg" "$OUTPUT_DIR/${base_name}-arch-$(date +%Y%m%d-%H%M).pkg.tar.zst"
-                rm -rf "$temp_dir"
-                safe_run rm -f "$deb_name"
-                return 0
-            fi
+              local final_name="$OUTPUT_DIR/${base_name}-arch-$(date +%Y%m%d-%H%M).pkg.tar.zst"
+              (cd "$temp_dir" && bsdtar -cf - .PKGINFO .BUILDINFO .MTREE .INSTALL * 2>/dev/null) \
+                  | zstd -q -19 > "$final_name"
 
-            local pkginfo="$temp_dir/.PKGINFO"
-            if [[ -f "$pkginfo" ]]; then
-                log_info "优化 .PKGINFO 中"
-                sed -i '/^depend[[:space:]]*=[[:space:]]*gtk$/d' "$pkginfo"
-                sed -i '/depend[[:space:]]*=[[:space:]]*gir1.2-/d' "$pkginfo"
-                sed -i 's/^license[[:space:]]*=.*$/license = GPL-3.0/' "$pkginfo"
-                sed -i 's/^packager[[:space:]]*=.*$/packager = Webpack/' "$pkginfo"
-                grep -q '^packager' "$pkginfo" || echo "packager = Webpack" >> "$pkginfo"
-            fi
+              rm -rf "$temp_dir" "$arch_pkg" "$deb_name"
+              local size=$(du -h "$final_name" 2>/dev/null | cut -f1)
+              log_info "完成 → $(basename "$final_name")  ($size)"
+              log_sep
+          }
 
-            local final_name="$OUTPUT_DIR/${base_name}-arch-$(date +%Y%m%d-%H%M).pkg.tar.zst"
+          cleanup_cache() {
+              local deb_name="$1"
+              safe_run rm -f "$deb_name" .PKGINFO .INSTALL .MTREE
+              safe_run rm -rf pkg/ src/
+              safe_run rm -f *.pkg.tar.* *.tar.* 2>/dev/null || true
+          }
 
-            (cd "$temp_dir" && bsdtar -cf - .PKGINFO .BUILDINFO .MTREE .INSTALL * 2>/dev/null) \
-                | zstd -q -19 > "$final_name"
+          main() {
+              clear
+              echo -e "${MAIN_COLOR}=================================================${NC}"
+              echo -e "${MAIN_COLOR}        02Engine DEB → Arch 包转换器${NC}"
+              echo -e "${MAIN_COLOR}=================================================${NC}"
+              echo -e "${YELLOW}输出目录: $(pwd)/$OUTPUT_DIR${NC}\n"
 
-            rm -rf "$temp_dir" "$arch_pkg" "$deb_name"
-            local size=$(du -h "$final_name" 2>/dev/null | cut -f1)
-            log_info "完成 → $(basename "$final_name")  ($size)"
-            log_sep
+              check_prerequisites
 
-            return 0
-        }
+              local files=()
+              while IFS= read -r -d '' f; do files+=("$f"); done < <(get_deb_packages)
+              (( ${#files[@]} == 0 )) && { log_warn "未找到 .deb 包"; exit 0; }
 
-        cleanup_cache() {
-            local deb_name="$1"
-            safe_run rm -f "$deb_name" .PKGINFO .INSTALL .MTREE
-            safe_run rm -rf pkg/ src/
-            safe_run rm -f *.pkg.tar.* *.tar.* 2>/dev/null || true
-        }
+              local total=${#files[@]} success=0 fail=0
+              log_info "发现 $total 个 deb 包，开始转换\n"
 
-        main() {
-            clear
-            echo -e "${MAIN_COLOR}=================================================${NC}"
-            echo -e "${MAIN_COLOR}        02Engine DEB → Arch 包转换器${NC}"
-            echo -e "${MAIN_COLOR}=================================================${NC}"
-            echo -e "${YELLOW}输出目录: $(pwd)/$OUTPUT_DIR${NC}\n"
+              for ((i=0; i<total; i++)); do
+                  if convert_single_package "${files[$i]}" $((i+1)) "$total"; then
+                      ((success++))
+                  else
+                      ((fail++))
+                  fi
+                  cleanup_cache "$(basename "${files[$i]}")"
+                  echo
+              done
 
-            check_prerequisites
+              echo -e "${MAIN_COLOR}=================================================${NC}"
+              (( fail == 0 )) && log_step "全部成功！" || log_warn "转换完成（部分失败）"
+              log_info "总数: $total   成功: $success   失败: $fail"
+              log_info "输出目录 → $(pwd)/$OUTPUT_DIR"
+              echo -e "${MAIN_COLOR}=================================================${NC}"
+              (( fail > 0 )) && exit 1 || exit 0
+          }
 
-            local files=()
-            while IFS= read -r -d '' f; do files+=("$f"); done < <(get_deb_packages)
-            (( ${#files[@]} == 0 )) && { log_warn "dist 目录下未找到任何 .deb 包"; exit 0; }
+          trap 'echo -e "\n${RED}中断，清理临时文件...${NC}";
+                safe_run rm -f *.deb .PKGINFO .INSTALL .MTREE;
+                safe_run rm -rf pkg/ src/;
+                safe_run rm -f *.pkg.tar.* *.tar.*;
+                echo -e "${RED}已退出${NC}"; exit 130' INT TERM
 
-            local total=${#files[@]} success=0 fail=0
-            log_info "共发现 $total 个 deb 包，开始转换\n"
+          main "$@"
+          EOS
+          chmod +x convertarch.sh
 
-            for ((i=0; i<total; i++)); do
-                if convert_single_package "${files[$i]}" $((i+1)) "$total"; then
-                    ((success++))
-                else
-                    ((fail++))
-                    log_error "第 $((i+1)) 个包转换失败"
-                fi
-                cleanup_cache "$(basename "${files[$i]}")"
-                echo
-            done
+      - name: Run deb → Arch conversion
+        run: |
+          ./convertarch.sh
 
-            echo -e "${MAIN_COLOR}=================================================${NC}"
-            (( fail == 0 )) && log_step "全部转换完成！" || log_warn "转换结束（有失败项）"
-            log_info "总数: $total   成功: $success   失败: $fail"
-            log_info "输出目录 → $(pwd)/$OUTPUT_DIR"
-            echo -e "${MAIN_COLOR}=================================================${NC}"
+      - name: List generated Arch packages
+        run: |
+          echo "转换完成，生成的 Arch 包如下："
+          find arch-packages -type f -name "*.pkg.tar.zst" | sort || echo "无 Arch 包生成"
 
-            (( fail > 0 )) && exit 1 || exit 0
-        }
+      # 重新下载原始 Linux 包，用于最终合并上传
+      - name: Download original Linux artifacts again
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-for-arch-conversion
+          path: dist_original
 
-        trap 'echo -e "\n${RED}用户中断，正在清理临时文件...${NC}";
-              safe_run rm -f *.deb .PKGINFO .INSTALL .MTREE;
-              safe_run rm -rf pkg/ src/;
-              safe_run rm -f *.pkg.tar.* *.tar.* 2>/dev/null;
-              echo -e "${RED}已退出${NC}"; exit 130' INT TERM
-
-        main "$@"
-        EOS
-        chmod +x convertarch.sh
-
-    - name: Run deb → Arch conversion
-      run: |
-        ./convertarch.sh
-
-    - name: List generated Arch packages
-      run: |
-        echo "转换完成，Arch 包如下："
-        find arch-packages -type f -name "*.pkg.tar.zst" | sort
-
-    # ────────────────────────────────
-    # 最终统一上传：原始 Linux 包 + 转换后的 Arch 包
-    # ────────────────────────────────
-    - name: Download original Linux artifacts again (for final merge)
-      uses: actions/download-artifact@v4
-      with:
-        name: linux-for-arch-conversion
-        path: dist_original
-
-    - name: Upload ALL final artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-and-arch
-        path: |
-          dist_original/*
-          arch-packages/*.pkg.tar.zst
+      # 最终上传：原始 deb/tar.gz/AppImage + 转换后的 Arch 包
+      - name: Upload ALL final artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-and-arch
+          path: |
+            dist_original/*
+            arch-packages/*.pkg.tar.zst
