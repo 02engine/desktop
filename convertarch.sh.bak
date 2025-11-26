@@ -64,7 +64,7 @@ convert_single_package() {
 
     local pkginfo="$temp_dir/.PKGINFO"
     if [[ -f "$pkginfo" ]]; then
-        log_info "优化 .PKGINFO 中"
+        log_info "优化 .PKGINFO（仅清理纯 gtk 依赖 + 统一信息）"
 
         # 精准删除只有“gtk”这个依赖的行（不会删 gtk3/gtk4/libgtk-3-0 等）
         sed -i '/^depend[[:space:]]*=[[:space:]]*gtk$/d' "$pkginfo"
