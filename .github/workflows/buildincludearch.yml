@@ -68,7 +68,8 @@ jobs:
       - name: Fix Arch container (2025 终极稳定版)
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo base-devel git fakeroot binutils zstd libarchive bsdtar namcap
+          pacman -S --noconfirm sudo base-devel git fakeroot binutils zstd libarchive namcap
+          # 已删除 bsdtar（它由 libarchive 提供，不存在单独的 bsdtar 包名）
           echo "RUNNER_USER=root" >> $GITHUB_ENV   # 这一行解决所有 sudo 问题！
 
       # 安装 debtap（直接用 root，不需要 nobody）
@@ -137,7 +138,7 @@ jobs:
               # 美化 .PKGINFO
               local pkginfo="$temp_dir/.PKGINFO"
               if [[ -f "$pkginfo" ]]; then
-                  sed -i '/^depend[[:space:]]*=[[:space:]]*(gtk\|gir1\.2-)/d' "$pkginfo"
+                  sed -i '/^depend[[:space:]]*=.*(gtk\|gir1\.2-)/d' "$pkginfo"
                   sed -i 's/^license[[:space:]]*=.*$/license = GPL-3.0/' "$pkginfo"
                   sed -i 's/^packager[[:space:]]*=.*$/packager = GitHub Actions <actions@github.com>/' "$pkginfo"
                   grep -q '^packager' "$pkginfo" || echo "packager = GitHub Actions <actions@github.com>" >> "$pkginfo"
@@ -213,4 +214,3 @@ jobs:
           path: |
             dist_original/*
             arch-packages/*.pkg.tar.zst
-       
