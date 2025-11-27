@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux:
+  build-linux-noarch:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -34,11 +34,89 @@ jobs:
     - name: Upload artifacts to GitHub Actions
       uses: actions/upload-artifact@v4
       with:
-        name: linux
+        name: arch-conversion-artifacts
         path: |
           dist/*.deb
           dist/*.tar.gz
           dist/*.AppImage
+          convertarch.sh
+        retention-days: 1
+        
+  build-linux-includearch:
+    needs: build-linux-noarch
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+      options: --privileged
+
+    steps:
+      - name: Prepare Arch environment
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
+          useradd -m -s /bin/bash builduser
+          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
+          echo 'export TERM=xterm' >> /etc/bash.bashrc
+
+      - name: Install and update debtap
+        run: |
+          sudo -u builduser bash <<'EOF'
+          set -e
+          export TERM=xterm
+          cd /home/builduser
+          git clone https://aur.archlinux.org/debtap.git
+          cd debtap
+          makepkg -si --noconfirm
+          EOF
+          
+          debtap -u
+          debtap --version || true
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: arch-conversion-artifacts
+          path: /workspace
+
+      - name: Setup workspace
+        run: |
+          cd /workspace
+          ls -la
+          chmod +x convertarch.sh
+          mkdir -p dist
+          find . -name "*.deb" -exec mv {} dist/ \; 2>/dev/null || true
+          
+          if [ -f "convertarch.sh" ]; then
+            cp convertarch.sh convertarch.sh.backup
+            sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
+          fi
+          
+          find dist -name "*.deb" | sort
+
+      - name: Convert packages
+        working-directory: /workspace
+        run: |
+          export TERM=xterm
+          ./convertarch.sh
+
+      - name: Verify packages
+        working-directory: /workspace
+        run: |
+          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || true
+          ls -la arch-packages/ 2>/dev/null || true
+          pwd
+          ls -la
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-linux-packages
+          path: |
+            /workspace/arch-packages/*.pkg.tar.zst
+            /workspace/dist/*.deb
+            /workspace/dist/*.tar.gz
+            /workspace/dist/*.AppImage
+
 
   build-mac:
     runs-on: macos-latest

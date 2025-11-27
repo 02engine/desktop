@@ -43,19 +43,15 @@ jobs:
       - name: Print file tree
         run: node scripts/print-file-tree.js dist
 
-      # 上传中间产物给 Arch 转换用
-      - name: Upload Linux artifacts (intermediate)
+      - name: Upload artifacts for Arch conversion
         uses: actions/upload-artifact@v4
         with:
-          name: linux-for-arch-conversion
+          name: arch-conversion-artifacts
           path: |
             dist/*.deb
-            dist/*.tar.gz
-            dist/*.AppImage
+            convertarch.sh
           retention-days: 1
 
-
-  # ────────────────────── 独立 Job：在纯正 Arch 容器中把 deb 转为 pacman 包 ──────────────────────
   convert-to-arch:
     needs: build-linux
     runs-on: ubuntu-latest
@@ -64,153 +60,90 @@ jobs:
       options: --privileged
 
     steps:
-      # 关键修复：让后面所有步骤以 root 运行，彻底绕过 sudo/nobody/PAM 地狱
-      - name: Fix Arch container (2025 终极稳定版)
+      # 1. 准备Arch环境
+      - name: Prepare Arch environment
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo base-devel git fakeroot binutils zstd libarchive bsdtar namcap
-          echo "RUNNER_USER=root" >> $GITHUB_ENV   # 这一行解决所有 sudo 问题！
+          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
+          useradd -m -s /bin/bash builduser
+          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
+          echo 'export TERM=xterm' >> /etc/bash.bashrc
 
-      # 安装 debtap（直接用 root，不需要 nobody）
-      - name: Install debtap from AUR
+      # 2. 安装debtap并以root权限运行更新
+      - name: Install and update debtap
         run: |
-          git clone --depth=1 https://aur.archlinux.org/debtap.git /tmp/debtap
-          cd /tmp/debtap
+          # 安装debtap
+          sudo -u builduser bash <<'EOF'
+          set -e
+          export TERM=xterm
+          cd /home/builduser
+          git clone https://aur.archlinux.org/debtap.git
+          cd debtap
           makepkg -si --noconfirm
-          debtap -u || (sleep 15 && debtap -u) || echo "debtap -u failed, continue anyway"
+          EOF
+          
+          # 以root权限运行debtap更新（关键修复）
+          echo "正在以root权限运行debtap更新..."
+          debtap -u
+          echo "debtap更新完成"
+          
+          # 验证debtap是否正常工作
+          debtap --version || echo "debtap版本检查失败，但继续执行"
 
-      # 下载前面构建的 deb 包
-      - name: Download deb packages
+      # 3. 下载制品
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: linux-for-arch-conversion
-          path: dist
+          name: arch-conversion-artifacts
+          path: /workspace
 
-      # 写入超级干净的转换脚本（已删除所有 sudo）
-      - name: Write convertarch.sh (final clean version)
+      # 4. 准备工作目录和修复脚本中的debtap调用
+      - name: Setup workspace and fix script
         run: |
-          cat > convertarch.sh <<'EOS'
-          #!/usr/bin/env bash
-          set -uo pipefail
-
-          DIST_DIR="dist"
-          OUTPUT_DIR="arch-packages"
-
-          MAIN_COLOR='\033[0;36m'
-          RED='\033[0;31m'
-          GREEN='\033[0;32m'
-          YELLOW='\033[1;33m'
-          NC='\033[0m'
-
-          log_info()  { echo -e "${MAIN_COLOR}[INFO]${NC}  $1"; }
-          log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
-          log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-          log_step()  { echo -e "${MAIN_COLOR}[STEP]${NC}  $1"; }
-
-          check_prerequisites() {
-              [[ -d "$DIST_DIR" ]] || { log_error "dist 目录不存在"; exit 1; }
-              command -v debtap &>/dev/null || { log_error "debtap 未安装"; exit 1; }
-              command -v bsdtar &>/dev/null || { log_error "bsdtar 未安装"; exit 1; }
-              mkdir -p "$OUTPUT_DIR"
-          }
-
-          convert_single_package() {
-              local deb_file="$1"
-              local idx="$2"
-              local total="$3"
-              local deb_name="${deb_file##*/}"
-              local base_name="${deb_name%.deb}"
-
-              log_step "转换 [$idx/$total]: $base_name"
-
-              cp -f "$deb_file" "./$deb_name"
-
-              # 直接运行 debtap（已用 root，无需 sudo）
-              printf "y\ny\nn\nn\n\n\n" | debtap -q "$deb_name" || true
-
-              local arch_pkg=$(find . -maxdepth 1 -type f \( -name "*.pkg.tar.*" -o -name "*.tar.zst" \) | head -1)
-              [[ -z "$arch_pkg" ]] && { log_error "debtap 未生成包"; rm -f "$deb_name"; return 1; }
-
-              local temp_dir=$(mktemp -d)
-              bsdtar -xf "$arch_pkg" -C "$temp_dir"
-
-              # 美化 .PKGINFO
-              local pkginfo="$temp_dir/.PKGINFO"
-              if [[ -f "$pkginfo" ]]; then
-                  sed -i '/^depend[[:space:]]*=[[:space:]]*(gtk\|gir1\.2-)/d' "$pkginfo"
-                  sed -i 's/^license[[:space:]]*=.*$/license = GPL-3.0/' "$pkginfo"
-                  sed -i 's/^packager[[:space:]]*=.*$/packager = GitHub Actions <actions@github.com>/' "$pkginfo"
-                  grep -q '^packager' "$pkginfo" || echo "packager = GitHub Actions <actions@github.com>" >> "$pkginfo"
-              fi
-
-              local final_name="$OUTPUT_DIR/${base_name}-arch-$(date +%Y%m%d-%H%M).pkg.tar.zst"
-              (cd "$temp_dir" && bsdtar -cf - .PKGINFO .BUILDINFO .MTREE .INSTALL * 2>/dev/null) \
-                  | zstd -q -19 > "$final_name"
-
-              rm -rf "$temp_dir" "$arch_pkg" "$deb_name"
-              local size=$(du -h "$final_name" | cut -f1)
-              log_info "完成 → $(basename "$final_name") ($size)"
-          }
-
-          main() {
-              clear
-              echo -e "${MAIN_COLOR}=================================================${NC}"
-              echo -e "${MAIN_COLOR}        DEB → Arch Linux 包转换器${NC}"
-              echo -e "${MAIN_COLOR}=================================================${NC}"
-
-              check_prerequisites
-
-              mapfile -t files < <(find "$DIST_DIR" -type f -name "*.deb")
-              (( ${#files[@]} == 0 )) && { log_warn "未找到 .deb 包"; exit 0; }
-
-              local total=${#files[@]} success=0 fail=0
-              log_info "发现 $total 个 deb 包，开始转换\n"
-
-              for i in "${!files[@]}"; do
-                  if convert_single_package "${files[$i]}" $((i+1)) "$total"; then
-                      ((success++))
-                  else
-                      ((fail++))
-                  fi
-              done
-
-              echo -e "${MAIN_COLOR}=================================================${NC}"
-              if (( fail == 0 )); then log_step "全部成功！"; else log_warn "转换完成（部分失败）"; fi
-              log_info "总数: $total   成功: $success   失败: $fail"
-              log_info "输出目录 → $(pwd)/$OUTPUT_DIR"
-
-              # 可选：用 namcap 检查生成的包
-              command -v namcap &>/dev/null && namcap "$OUTPUT_DIR"/*.pkg.tar.zst || true
-
-              (( fail > 0 )) && exit 1 || exit 0
-          }
-
-          trap 'echo -e "\n${RED}中断，清理中...${NC}"; rm -rf pkg src *.pkg.tar.* *.deb .PKGINFO .MTREE .INSTALL; exit 130' INT TERM
-          main
-          EOS
+          cd /workspace
+          ls -la
           chmod +x convertarch.sh
+          mkdir -p dist
+          find . -name "*.deb" -exec mv {} dist/ \; 2>/dev/null || true
+          
+          # 修改脚本，确保使用root权限运行debtap
+          if [ -f "convertarch.sh" ]; then
+            # 备份原脚本
+            cp convertarch.sh convertarch.sh.backup
+            # 修改debtap调用，使用sudo或直接运行（因为我们在root环境）
+            sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
+            echo "✅ 脚本已调整以适应root环境"
+          fi
+          
+          echo "可用的deb包:"
+          find dist -name "*.deb" | sort
 
+      # 5. 执行转换脚本（在root环境下）
       - name: Run deb → Arch conversion
-        run: ./convertarch.sh
-
-      - name: List generated Arch packages
+        working-directory: /workspace
         run: |
-          echo "转换完成，生成的 Arch 包如下："
-          find arch-packages -type f -name "*.pkg.tar.zst" -ls || echo "无 Arch 包生成"
+          export TERM=xterm
+          # 确保在root权限下运行
+          ./convertarch.sh
 
-      # 重新下载原始 Linux 包（用于最终合并上传）
-      - name: Download original Linux artifacts again
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-for-arch-conversion
-          path: dist_original
+      # 6. 检查生成结果
+      - name: Verify generated packages
+        working-directory: /workspace
+        run: |
+          echo "=== 转换结果 ==="
+          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || echo "未找到Arch包"
+          echo "=== arch-packages目录 ==="
+          ls -la arch-packages/ 2>/dev/null || echo "arch-packages目录不存在"
+          echo "=== 工作目录内容 ==="
+          pwd
+          ls -la
 
-      # 最终上传：所有平台包一起
-      - name: Upload ALL final Linux + Arch artifacts
+      # 7. 上传最终产物
+      - name: Upload Arch packages
         uses: actions/upload-artifact@v4
         with:
-          name: linux-and-arch-packages
+          name: arch-linux-packages
           path: |
-            dist_original/*
-            arch-packages/*.pkg.tar.zst
-          retention-days: 14
+            /workspace/arch-packages/*.pkg.tar.zst
+            /workspace/dist/*.deb
+          
