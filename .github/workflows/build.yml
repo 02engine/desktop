@@ -110,7 +110,7 @@ jobs:
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: arch-linux-packages
+          name: linux
           path: |
             /workspace/arch-packages/*.pkg.tar.zst
             /workspace/dist/*.deb
