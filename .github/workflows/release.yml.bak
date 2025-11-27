@@ -130,7 +130,7 @@ jobs:
         uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
         with:
           file: /workspace/dist/*.deb;/workspace/dist/*.tar.gz;/workspace/dist/*.AppImage;/workspace/arch-packages/*.pkg.tar.zst
-          draft: false
+        draft: false
 
   release-mac:
     runs-on: macos-latest
