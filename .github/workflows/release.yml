@@ -50,7 +50,7 @@ jobs:
             convertarch.sh
           retention-days: 1
               
-  convert-to-arch:
+  release-linux-includearch:
     needs: release-linux-noarch
     runs-on: ubuntu-latest
     container:
@@ -128,8 +128,12 @@ jobs:
       - name: Upload artifacts to tag
         uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
         with:
-          file: /workspace/arch-packages/*.pkg.tar.zst;/workspace/dist/*.deb;/workspace/dist/*.tar.gz;/workspace/dist/*.AppImage
-        draft: false
+          file: |-
+            /workspace/arch-packages/*.pkg.tar.zst
+            /workspace/dist/*.deb
+            /workspace/dist/*.tar.gz
+            /workspace/dist/*.AppImage
+          draft: false
     
   release-mac:
     runs-on: macos-latest
