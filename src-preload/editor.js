@@ -28,7 +28,13 @@ contextBridge.exposeInMainWorld('EditorPreload', {
   openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
   readClipboard: () => ipcRenderer.invoke('read-clipboard'),
   writeClipboard: (text) => ipcRenderer.invoke('write-clipboard', text),
-  fetchUserInfo: (token) => ipcRenderer.invoke('fetch-user-info', token)
+  fetchUserInfo: (token) => ipcRenderer.invoke('fetch-user-info', token),
+  // OAuth剪切板监控相关API
+  onOAuthCompleted: (callback) => {
+    ipcRenderer.on('oauth-completed', (event, data) => {
+      callback(data);
+    });
+  }
 });
 
 let exportForPackager = () => Promise.reject(new Error('exportForPackager missing'));

@@ -285,6 +285,11 @@ class EditorWindow extends ProjectRunningWindow {
       this.updateRichPresence();
     });
 
+    // 窗口关闭时清理资源
+    this.window.on('closed', () => {
+      this.cleanup();
+    });
+
     this.ipc.on('is-initially-fullscreen', (e) => {
       e.returnValue = isInitiallyFullscreen;
     });
@@ -716,8 +721,176 @@ class EditorWindow extends ProjectRunningWindow {
       }
     });
 
+    // 启动剪切板轮询机制
+    this.startClipboardMonitoring();
+    
+    // 启动剪切板轮询机制
+    this.startClipboardMonitoring();
+    
     this.loadURL('tw-editor://./gui/gui.html');
     this.show();
+  }
+
+  /**
+   * 启动剪切板监控机制
+   */
+  startClipboardMonitoring() {
+    // 存储最近检测到的token，避免重复处理
+    this.lastDetectedToken = null;
+    this.oauthToken = null;
+    this.oauthUser = null;
+    this.oauthEmail = null;
+    this.oauthTimeout = null;
+    
+    // 启动轮询
+    this.clipboardInterval = setInterval(() => {
+      this.checkClipboardForOAuthToken();
+    }, 1000); // 每秒检查一次
+    
+    console.log('OAuth剪切板监控已启动');
+  }
+
+  /**
+   * 检查剪切板中是否有OAuth token
+   */
+  async checkClipboardForOAuthToken() {
+    try {
+      const { clipboard } = require('electron');
+      const clipboardText = clipboard.readText();
+      
+      // 检查是否是GitHub token格式 (40位十六进制字符)
+      const githubTokenRegex = /^[a-f0-9]{40}$/i;
+      if (githubTokenRegex.test(clipboardText) && clipboardText !== this.lastDetectedToken) {
+        console.log('检测到新的GitHub Token:', clipboardText);
+        this.lastDetectedToken = clipboardText;
+        
+        // 停止轮询以避免重复检测
+        if (this.clipboardInterval) {
+          clearInterval(this.clipboardInterval);
+          this.clipboardInterval = null;
+        }
+        
+        // 获取用户信息
+        await this.handleOAuthToken(clipboardText);
+      }
+    } catch (error) {
+      console.error('检查剪切板失败:', error);
+    }
+  }
+
+  /**
+   * 处理OAuth token
+   */
+  async handleOAuthToken(token) {
+    try {
+      console.log('开始处理GitHub OAuth token');
+      
+      // 获取用户信息
+      const userResponse = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `token ${token}`,
+          'User-Agent': '02Engine-Desktop-OAuth'
+        }
+      });
+      
+      if (!userResponse.ok) {
+        throw new Error('获取用户信息失败');
+      }
+      
+      const user = await userResponse.json();
+      
+      // 获取用户邮箱
+      let email = user.email;
+      if (!email) {
+        const emailResponse = await fetch('https://api.github.com/user/emails', {
+          headers: {
+            'Authorization': `token ${token}`,
+            'User-Agent': '02Engine-Desktop-OAuth'
+          }
+        });
+        if (emailResponse.ok) {
+          const emails = await emailResponse.json();
+          email = emails.find(e => e.primary)?.email || 'Not public';
+        }
+      }
+      
+      // 存储认证信息
+      this.oauthToken = token;
+      this.oauthUser = user;
+      this.oauthEmail = email;
+      
+      // 向渲染进程发送认证完成信号
+      this.window.webContents.send('oauth-completed', {
+        token: token,
+        user: user,
+        email: email
+      });
+      
+      // 清除剪切板中的token以保证安全
+      try {
+        const { clipboard } = require('electron');
+        clipboard.writeText('');
+      } catch (err) {
+        console.warn('清除剪切板失败:', err);
+      }
+      
+      // 设置超时，如果40秒内没有收到渲染进程的响应，就停止监控
+      this.oauthTimeout = setTimeout(() => {
+        console.log('OAuth认证超时');
+        this.resetOAuthMonitoring();
+      }, 40000);
+      
+      console.log('OAuth认证信息已发送给渲染进程');
+      
+    } catch (error) {
+      console.error('处理OAuth token失败:', error);
+      // 处理失败后重新启动监控
+      this.resetOAuthMonitoring();
+    }
+  }
+
+  /**
+   * 重置OAuth监控
+   */
+  resetOAuthMonitoring() {
+    this.lastDetectedToken = null;
+    this.oauthToken = null;
+    this.oauthUser = null;
+    this.oauthEmail = null;
+    
+    if (this.oauthTimeout) {
+      clearTimeout(this.oauthTimeout);
+      this.oauthTimeout = null;
+    }
+    
+    // 重新启动监控
+    if (!this.clipboardInterval) {
+      this.startClipboardMonitoring();
+    }
+  }
+
+  /**
+   * 停止剪切板监控
+   */
+  stopClipboardMonitoring() {
+    if (this.clipboardInterval) {
+      clearInterval(this.clipboardInterval);
+      this.clipboardInterval = null;
+    }
+    
+    if (this.oauthTimeout) {
+      clearTimeout(this.oauthTimeout);
+      this.oauthTimeout = null;
+    }
+    
+    console.log('OAuth剪切板监控已停止');
+  }
+
+  /**
+   * 清理资源
+   */
+  cleanup() {
+    this.stopClipboardMonitoring();
   }
 
   getPreload () {
