@@ -122,7 +122,7 @@
 
     async function startOAuth() {
       // 使用内置的 Client ID，而不是从输入框获取
-      const clientId = 'Ov23liiGiIBKpOFbx68G'; // 内置的 Client ID
+      const clientId = 'Ov23liShK8kmAipWUYCw'; // 内置的 Client ID，与项目配置一致
       if (!clientId) return showError('请输入 Client ID');
 
       try {
@@ -314,29 +314,55 @@
           startOAuth();
         }, 1000); // 稍微延迟一下，让用户看到正在启动的消息
       }
+      
+      // 检查是否从桌面端打开并获取WebSocket端口
+      const wsPort = params.get('wsPort');
+      if (wsPort) {
+        console.log('检测到桌面端WebSocket服务器，端口:', wsPort);
+        connectToDesktopWebSocket(wsPort);
+      }
     });
 
-    // 检测是否在桌面环境中并传递token
+    // 连接桌面端WebSocket服务器
+    function connectToDesktopWebSocket(port) {
+      try {
+        const ws = new WebSocket(`ws://localhost:${port}`);
+        
+        ws.onopen = () => {
+          console.log('已连接到桌面端WebSocket服务器');
+        };
+        
+        ws.onerror = (error) => {
+          console.error('WebSocket连接失败:', error);
+        };
+        
+        ws.onclose = () => {
+          console.log('WebSocket连接已关闭');
+        };
+        
+        // 将WebSocket连接保存到全局变量
+        window.oauthWebSocket = ws;
+        
+      } catch (error) {
+        console.error('创建WebSocket连接失败:', error);
+      }
+    }
+
+    // 通过WebSocket发送token到桌面端
     function sendTokenToDesktop(token) {
-      // 检查是否在桌面环境中，通过检查是否存在EditorPreload对象
-      const isDesktop = typeof window.EditorPreload !== 'undefined';
-      
-      if (isDesktop) {
-        // 桌面环境：使用IPC发送token到主进程
-        // 由于我们不能直接从外部页面调用桌面应用的IPC，
-        // 我们将token保存到localStorage，桌面应用会定期检查
-        localStorage.setItem('oauth_token_received', token);
+      if (window.oauthWebSocket && window.oauthWebSocket.readyState === WebSocket.OPEN) {
+        window.oauthWebSocket.send(JSON.stringify({
+          type: 'oauth_token',
+          token: token
+        }));
+        console.log('Token已通过WebSocket发送到桌面端');
       } else {
-        // Web环境：使用postMessage或其他方式
-        window.opener?.postMessage({ type: 'GITHUB_TOKEN', token: token }, '*');
-        window.parent?.postMessage({ type: 'GITHUB_TOKEN', token: token }, '*');
+        console.warn('WebSocket连接未就绪，无法发送token');
       }
     }
 
     // 在获取到token后调用这个函数
     function onTokenReceived(token) {
-      // 保存到localStorage以便桌面应用检查
-      localStorage.setItem('oauth_token_received', token);
       sendTokenToDesktop(token);
     }
 
@@ -350,67 +376,20 @@
       }
     }
 
-    // 修改displayUserInfo函数，以便在显示用户信息后将token等信息存储到 localStorage
+    // 修改displayUserInfo函数，以便在显示用户信息后自动发送token
     const originalDisplayUserInfo = displayUserInfo;
     displayUserInfo = function(user, email, token) {
       originalDisplayUserInfo(user, email, token);
-      
-      // 存储到 localStorage 以供桌面应用轮询检查
-      localStorage.setItem('oauth_token_received', token);
-      localStorage.setItem('github_user', JSON.stringify(user));
-      localStorage.setItem('github_email', email);
-      
-      // 将token写入系统剪切板
-      if (navigator.clipboard && window.isSecureContext) {
-        // 在安全环境下使用 Clipboard API
-        navigator.clipboard.writeText(token).then(() => {
-          console.log('Token已写入剪切板');
-        }).catch(err => {
-          console.warn('无法写入剪切板:', err);
-        });
-      } else {
-        // 降级方案：创建一个临时input元素
-        const textarea = document.createElement('textarea');
-        textarea.value = token;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-          document.execCommand('copy');
-          console.log('Token已写入剪切板 (降级方案)');
-        } catch (err) {
-          console.warn('无法写入剪切板 (降级方案):', err);
-        }
-        document.body.removeChild(textarea);
-      }
-      
-      // 显示成功消息和指示用户返回应用
-      const contentDiv = document.querySelector('.content');
-      if (contentDiv) {
-        const successDiv = document.createElement('div');
-        successDiv.className = 'token-section';
-        successDiv.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span class="token-title">认证成功！</span>
-          </div>
-          <p>认证已完成，GitHub Token已自动写入剪切板。</p>
-          <p>请返回桌面应用，认证将自动完成。</p>
-          <p>如未自动返回，请手动关闭此窗口。</p>
-        `;
-        contentDiv.appendChild(successDiv);
-      }
-      
-      // 通知桌面应用
       onTokenReceived(token);
-      
-      // 在桌面环境中，可以自动关闭窗口
-      if (window.EditorPreload) {
-        setTimeout(() => {
-          window.close();
-        }, 2000); // 2秒后关闭窗口
-      }
+      checkDesktopAndClose();
     };
+
+    // 页面关闭时清理WebSocket连接
+    window.addEventListener('beforeunload', () => {
+      if (window.oauthWebSocket) {
+        window.oauthWebSocket.close();
+      }
+    });
   </script>
 </body>
 </html>

@@ -3,7 +3,9 @@ const path = require('path');
 const nodeURL = require('url');
 const zlib = require('zlib');
 const nodeCrypto = require('crypto');
-const {app, dialog} = require('electron');
+const {app, dialog, net} = require('electron');
+const http = require('http');
+const WebSocket = require('ws');
 const ProjectRunningWindow = require('./project-running-window');
 const AddonsWindow = require('./addons');
 const DesktopSettingsWindow = require('./desktop-settings');
@@ -285,9 +287,9 @@ class EditorWindow extends ProjectRunningWindow {
       this.updateRichPresence();
     });
 
-    // 窗口关闭时清理资源
+    // 窗口关闭时清理WebSocket服务器
     this.window.on('closed', () => {
-      this.cleanup();
+      this.stopOAuthWebSocketServer();
     });
 
     this.ipc.on('is-initially-fullscreen', (e) => {
@@ -620,6 +622,12 @@ class EditorWindow extends ProjectRunningWindow {
       try {
         const { BrowserWindow } = require('electron');
         
+        // 启动WebSocket服务器获取端口号
+        const wsPort = await this.startOAuthWebSocketServer();
+        
+        // 传递WebSocket服务器端口给OAuth窗口
+        const oauthUrlWithPort = `${url}?wsPort=${wsPort}`;
+        
         // 创建一个新的浏览器窗口用于 OAuth
         const oauthWindow = new BrowserWindow({
           width: 600,
@@ -635,7 +643,7 @@ class EditorWindow extends ProjectRunningWindow {
         });
 
         // 加载 OAuth URL
-        await oauthWindow.loadURL(url);
+        await oauthWindow.loadURL(oauthUrlWithPort);
         
         // 显示窗口
         oauthWindow.show();
@@ -724,174 +732,11 @@ class EditorWindow extends ProjectRunningWindow {
     // 启动剪切板轮询机制
     this.startClipboardMonitoring();
     
-    // 启动剪切板轮询机制
-    this.startClipboardMonitoring();
-    
     this.loadURL('tw-editor://./gui/gui.html');
     this.show();
   }
 
-  /**
-   * 启动剪切板监控机制
-   */
-  startClipboardMonitoring() {
-    // 存储最近检测到的token，避免重复处理
-    this.lastDetectedToken = null;
-    this.oauthToken = null;
-    this.oauthUser = null;
-    this.oauthEmail = null;
-    this.oauthTimeout = null;
-    
-    // 启动轮询
-    this.clipboardInterval = setInterval(() => {
-      this.checkClipboardForOAuthToken();
-    }, 1000); // 每秒检查一次
-    
-    console.log('OAuth剪切板监控已启动');
-  }
-
-  /**
-   * 检查剪切板中是否有OAuth token
-   */
-  async checkClipboardForOAuthToken() {
-    try {
-      const { clipboard } = require('electron');
-      const clipboardText = clipboard.readText();
-      
-      // 检查是否是GitHub token格式 (40位十六进制字符)
-      const githubTokenRegex = /^[a-f0-9]{40}$/i;
-      if (githubTokenRegex.test(clipboardText) && clipboardText !== this.lastDetectedToken) {
-        console.log('检测到新的GitHub Token:', clipboardText);
-        this.lastDetectedToken = clipboardText;
-        
-        // 停止轮询以避免重复检测
-        if (this.clipboardInterval) {
-          clearInterval(this.clipboardInterval);
-          this.clipboardInterval = null;
-        }
-        
-        // 获取用户信息
-        await this.handleOAuthToken(clipboardText);
-      }
-    } catch (error) {
-      console.error('检查剪切板失败:', error);
-    }
-  }
-
-  /**
-   * 处理OAuth token
-   */
-  async handleOAuthToken(token) {
-    try {
-      console.log('开始处理GitHub OAuth token');
-      
-      // 获取用户信息
-      const userResponse = await fetch('https://api.github.com/user', {
-        headers: {
-          'Authorization': `token ${token}`,
-          'User-Agent': '02Engine-Desktop-OAuth'
-        }
-      });
-      
-      if (!userResponse.ok) {
-        throw new Error('获取用户信息失败');
-      }
-      
-      const user = await userResponse.json();
-      
-      // 获取用户邮箱
-      let email = user.email;
-      if (!email) {
-        const emailResponse = await fetch('https://api.github.com/user/emails', {
-          headers: {
-            'Authorization': `token ${token}`,
-            'User-Agent': '02Engine-Desktop-OAuth'
-          }
-        });
-        if (emailResponse.ok) {
-          const emails = await emailResponse.json();
-          email = emails.find(e => e.primary)?.email || 'Not public';
-        }
-      }
-      
-      // 存储认证信息
-      this.oauthToken = token;
-      this.oauthUser = user;
-      this.oauthEmail = email;
-      
-      // 向渲染进程发送认证完成信号
-      this.window.webContents.send('oauth-completed', {
-        token: token,
-        user: user,
-        email: email
-      });
-      
-      // 清除剪切板中的token以保证安全
-      try {
-        const { clipboard } = require('electron');
-        clipboard.writeText('');
-      } catch (err) {
-        console.warn('清除剪切板失败:', err);
-      }
-      
-      // 设置超时，如果40秒内没有收到渲染进程的响应，就停止监控
-      this.oauthTimeout = setTimeout(() => {
-        console.log('OAuth认证超时');
-        this.resetOAuthMonitoring();
-      }, 40000);
-      
-      console.log('OAuth认证信息已发送给渲染进程');
-      
-    } catch (error) {
-      console.error('处理OAuth token失败:', error);
-      // 处理失败后重新启动监控
-      this.resetOAuthMonitoring();
-    }
-  }
-
-  /**
-   * 重置OAuth监控
-   */
-  resetOAuthMonitoring() {
-    this.lastDetectedToken = null;
-    this.oauthToken = null;
-    this.oauthUser = null;
-    this.oauthEmail = null;
-    
-    if (this.oauthTimeout) {
-      clearTimeout(this.oauthTimeout);
-      this.oauthTimeout = null;
-    }
-    
-    // 重新启动监控
-    if (!this.clipboardInterval) {
-      this.startClipboardMonitoring();
-    }
-  }
-
-  /**
-   * 停止剪切板监控
-   */
-  stopClipboardMonitoring() {
-    if (this.clipboardInterval) {
-      clearInterval(this.clipboardInterval);
-      this.clipboardInterval = null;
-    }
-    
-    if (this.oauthTimeout) {
-      clearTimeout(this.oauthTimeout);
-      this.oauthTimeout = null;
-    }
-    
-    console.log('OAuth剪切板监控已停止');
-  }
-
-  /**
-   * 清理资源
-   */
-  cleanup() {
-    this.stopClipboardMonitoring();
-  }
+  
 
   getPreload () {
     return 'editor';
@@ -982,6 +827,155 @@ class EditorWindow extends ProjectRunningWindow {
 
   canExitFullscreenByPressingEscape () {
     return !this.isInEditorFullScreen;
+  }
+
+  /**
+   * 启动OAuth WebSocket服务器
+   */
+  async startOAuthWebSocketServer() {
+    // 选择一个冷门的端口范围
+    const port = Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152;
+    
+    // 创建HTTP服务器
+    const server = http.createServer();
+    
+    // 创建WebSocket服务器
+    this.websocketServer = new WebSocket.Server({ server });
+    
+    // 存储连接的WebSocket
+    this.websocketConnection = null;
+    
+    return new Promise((resolve, reject) => {
+      server.listen(port, 'localhost', (err) => {
+        if (err) {
+          console.error('WebSocket服务器启动失败:', err);
+          reject(err);
+          return;
+        }
+        
+        console.log(`OAuth WebSocket服务器已启动，端口: ${port}`);
+        
+        // 监听WebSocket连接
+        this.websocketServer.on('connection', (ws) => {
+          console.log('WebSocket连接已建立');
+          this.websocketConnection = ws;
+          
+          // 监听来自WebSocket的消息
+          ws.on('message', async (data) => {
+            try {
+              const message = JSON.parse(data.toString());
+              console.log('收到WebSocket消息:', message);
+              
+              if (message.type === 'oauth_token') {
+                // 收到OAuth token，处理认证流程
+                await this.handleOAuthTokenFromWebSocket(message.token);
+                ws.send(JSON.stringify({ type: 'success', message: 'Token已接收，正在处理...' }));
+                
+                // 稍后关闭WebSocket连接和服务器
+                setTimeout(() => {
+                  this.stopOAuthWebSocketServer();
+                }, 2000);
+              }
+            } catch (error) {
+              console.error('处理WebSocket消息失败:', error);
+              ws.send(JSON.stringify({ type: 'error', message: '处理失败' }));
+            }
+          });
+          
+          // 连接关闭时的处理
+          ws.on('close', () => {
+            console.log('WebSocket连接已关闭');
+            this.websocketConnection = null;
+            // 如果是正常关闭，由处理函数负责停止服务器
+          });
+          
+          ws.on('error', (error) => {
+            console.error('WebSocket错误:', error);
+          });
+        });
+        
+        resolve(port);
+      });
+    });
+  }
+
+  /**
+   * 停止OAuth WebSocket服务器
+   */
+  stopOAuthWebSocketServer() {
+    if (this.websocketConnection) {
+      this.websocketConnection.close();
+      this.websocketConnection = null;
+    }
+    
+    if (this.websocketServer) {
+      this.websocketServer.close((err) => {
+        if (err) {
+          console.error('关闭WebSocket服务器失败:', err);
+        } else {
+          console.log('OAuth WebSocket服务器已关闭');
+        }
+      });
+      this.websocketServer = null;
+    }
+  }
+
+  /**
+   * 处理来自WebSocket的OAuth token
+   */
+  async handleOAuthTokenFromWebSocket(token) {
+    try {
+      console.log('开始处理WebSocket传来的GitHub OAuth token');
+      
+      // 获取用户信息
+      const userResponse = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `token ${token}`,
+          'User-Agent': '02Engine-Desktop-OAuth-WebSocket'
+        }
+      });
+      
+      if (!userResponse.ok) {
+        throw new Error('获取用户信息失败');
+      }
+      
+      const user = await userResponse.json();
+      
+      // 获取用户邮箱
+      let email = user.email;
+      if (!email) {
+        const emailResponse = await fetch('https://api.github.com/user/emails', {
+          headers: {
+            'Authorization': `token ${token}`,
+            'User-Agent': '02Engine-Desktop-OAuth-WebSocket'
+          }
+        });
+        if (emailResponse.ok) {
+          const emails = await emailResponse.json();
+          email = emails.find(e => e.primary)?.email || 'Not public';
+        }
+      }
+      
+      // 向渲染进程发送认证完成信号
+      this.window.webContents.send('oauth-completed', {
+        token: token,
+        user: user,
+        email: email
+      });
+      
+      console.log('OAuth认证信息已发送给渲染进程');
+      
+    } catch (error) {
+      console.error('处理WebSocket OAuth token失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 窗口关闭时清理WebSocket服务器
+   */
+  onWindowClosed() {
+    this.stopOAuthWebSocketServer();
   }
 
   updateRichPresence () {
