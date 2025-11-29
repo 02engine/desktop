@@ -1,0 +1,23 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# 存储token的路由
+[[redirects]]
+  from = "/store-token"
+  to = "/.netlify/functions/store-token"
+  status = 200
+
+# 获取临时token的路由
+[[redirects]]
+  from = "/temp-token/*"
+  to = "/.netlify/functions/temp-token"
+  status = 200
+
+# 允许所有来源的跨域请求
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"

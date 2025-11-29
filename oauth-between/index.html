@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GitHub OAuth 认证</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .container { background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 500px; width: 100%; overflow: hidden; }
+    .header { background: #333; color: white; padding: 30px; text-align: center; }
+    .header h1 { font-size: 28px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .github-icon { width: 40px; height: 40px; fill: white; }
+    .content { padding: 30px; }
+    .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none; }
+    .config-section { background: #e3f2fd; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+    .config-title { font-weight: 600; color: #1565c0; margin-bottom: 10px; }
+    .config-input { width: 100%; padding: 10px; border: 1px solid #90caf9; border-radius: 5px; margin-bottom: 10px; }
+    .config-help { font-size: 12px; color: #666; }
+    .login-btn { background: #24292e; color: white; border: none; padding: 15px 30px; font-size: 16px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; width: 100%; justify-content: center; transition: all 0.3s ease; }
+    .login-btn:hover { background: #0366d6; transform: translateY(-2px); }
+    .loading { display: none; text-align: center; padding: 20px; }
+    .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .user-info { display: none; }
+    .user-avatar { width: 100px; height: 100px; border-radius: 50%; margin: 0 auto 20px; display: block; border: 4px solid #f0f0f0; }
+    .user-details { background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+    .detail-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0; }
+    .detail-item:last-child { border-bottom: none; }
+    .detail-label { color: #666; font-size: 14px; }
+    .detail-value { color: #333; font-weight: 500; font-size: 14px; word-break: break-all; }
+    .token-section { background: #fff3cd; border: 1px solid #ffc107; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+    .token-title { font-weight: 600; color: #856404; }
+    .token-value { background: white; padding: 10px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all; margin-top: 10px; }
+    .copy-btn { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+    .copy-btn:hover { background: #218838; }
+    .logout-btn { background: #dc3545; color: white; border: none; padding: 12px; font-size: 16px; border-radius: 8px; cursor: pointer; width: 100%; }
+    .logout-btn:hover { background: #c82333; }
+    .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; background: #d4edda; color: #155724; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>
+        <svg class="github-icon" viewBox="0 0 24 24">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        GitHub OAuth 认证
+      </h1>
+      <p>安全获取 Access Token</p>
+    </div>
+
+    <div class="content">
+      <div class="error" id="error-message"></div>
+
+      <div class="config-section" style="display:none;">
+        <div class="config-title">应用配置</div>
+        <input type="text" id="client-id" class="config-input" value="Ov23liShK8kmAipWUYCw"> <!-- 内置 Client ID -->
+        <div class="config-help">
+          回调地址: <code id="callback-url"></code><br>
+          <small>后端: <code>https://02oauth-backend.netlify.app/.netlify/functions/token</code></small>
+        </div>
+      </div>
+
+      <div class="loading" id="auto-start-message" style="display:block; text-align:center; padding:20px;">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px; color: #666;">正在启动 GitHub 认证...</p>
+      </div>
+
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px; color: #666;">正在处理认证...</p>
+      </div>
+
+      <div class="user-info" id="user-info">
+        <img id="user-avatar" class="user-avatar" src="" alt="Avatar">
+        <div class="user-details">
+          <h3>用户信息</h3>
+          <div class="detail-item"><span class="detail-label">用户名</span><span class="detail-value" id="username">-</span></div>
+          <div class="detail-item"><span class="detail-label">姓名</span><span class="detail-value" id="name">-</span></div>
+          <div class="detail-item"><span class="detail-label">邮箱</span><span class="detail-value" id="email">-</span></div>
+          <div class="detail-item"><span class="detail-label">公开仓库</span><span class="detail-value" id="public-repos">-</span></div>
+          <div class="detail-item"><span class="detail-label">状态</span><span class="status-badge" id="token-status">有效</span></div>
+        </div>
+        <div class="token-section">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span class="token-title">Access Token</span>
+            <button class="copy-btn" onclick="copyToken()">复制</button>
+          </div>
+          <div class="token-value" id="token-value">-</div>
+        </div>
+        <button class="logout-btn" onclick="logout()">退出登录</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 生成OAuth哈希（与桌面端使用相同算法）
+    function generateOAuthHash() {
+      const timestamp = getCurrentTimestamp();
+      const deviceInfo = getDeviceInfo();
+      const data = `${deviceInfo}_${timestamp}`;
+      
+      // 使用Web Crypto API进行SHA256哈希
+      const encoder = new TextEncoder();
+      const dataBuffer = encoder.encode(data);
+      return window.crypto.subtle.digest('SHA-256', dataBuffer).then(hashBuffer => {
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return `${hashHex}_${timestamp}`;
+      });
+    }
+
+    // 获取设备信息（与桌面端兼容）
+    function getDeviceInfo() {
+      const platform = getPlatform();
+      const arch = getArchitecture();
+      const timezone = getTimezone();
+      return `plat_${platform}_arch_${arch}_tz_${timezone}`.replace(/[^a-zA-Z0-9]/g, '');
+    }
+
+    // 获取平台信息
+    function getPlatform() {
+      const userAgent = navigator.userAgent.toLowerCase();
+      if (userAgent.includes('win')) return 'win32';
+      if (userAgent.includes('mac')) return 'darwin';
+      if (userAgent.includes('linux')) return 'linux';
+      return 'unknown';
+    }
+
+    // 获取架构信息
+    function getArchitecture() {
+      const userAgent = navigator.userAgent;
+      if (userAgent.includes('x86_64') || userAgent.includes('amd64')) return 'x64';
+      if (userAgent.includes('arm64') || userAgent.includes('aarch64')) return 'arm64';
+      return 'unknown';
+    }
+
+    // 获取时区信息
+    function getTimezone() {
+      const offset = new Date().getTimezoneOffset();
+      return `tz_${offset}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10);
+    }
+
+    // 获取当前时间戳（分钟级精度）
+    function getCurrentTimestamp() {
+      const now = Date.now();
+      return Math.floor(now / (1000 * 60)) * 60 * 1000;
+    }
+
+    // 获取URL参数中的哈希或生成新的哈希
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlHash = urlParams.get('hash');
+    
+    // 正确后端地址
+    const BACKEND_URL = 'https://02engine-desktop-oauth-backend.netlify.app/.netlify/functions/token';
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    document.getElementById('callback-url').textContent = REDIRECT_URI;
+    
+    // 使用固定hash（不动态变化）
+    let oauthHash = urlHash;
+    
+    // 如果没有URL hash，生成固定hash
+    if (!oauthHash) {
+      // 使用页面加载时的固定时间戳
+      const initTime = Math.floor(Date.now() / (1000 * 60)) * 60 * 1000;
+      const deviceInfo = getDeviceInfo();
+      const data = `${deviceInfo}_${initTime}`;
+      
+      // 使用与桌面端相同的哈希算法
+      const encoder = new TextEncoder();
+      const dataBuffer = encoder.encode(data);
+      window.crypto.subtle.digest('SHA-256', dataBuffer).then(hashBuffer => {
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        oauthHash = `${hashHex}_${initTime}`;
+      }).catch(err => {
+        console.error('SHA-256计算失败:', err);
+      });
+      
+      // 如果没有异步生成，则使用默认hash
+      setTimeout(() => {
+        if (!oauthHash) {
+          const defaultData = `plat_${getPlatform()}_arch_${getArchitecture()}_tz_${getTimezone()}_${initTime}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10);
+          const defaultHash = btoa(defaultData).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+          oauthHash = `${defaultHash}_${initTime}`;
+        }
+      }, 100);
+    }
+
+    function generateRandomString(length) {
+      const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+      const values = crypto.getRandomValues(new Uint8Array(length));
+      return Array.from(values, x => possible[x % possible.length]).join('');
+    }
+
+    async function sha256(plain) {
+      if (!window.crypto?.subtle) throw new Error('需要 HTTPS 环境');
+      const encoder = new TextEncoder();
+      const data = encoder.encode(plain);
+      const hash = await window.crypto.subtle.digest('SHA-256', data);
+      return btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function startOAuth() {
+      // 使用内置的 Client ID，而不是从输入框获取
+      const clientId = 'Ov23liiGiIBKpOFbx68G'; // 内置的 Client ID，与项目配置一致
+      if (!clientId) return showError('请输入 Client ID');
+
+      try {
+        const codeVerifier = generateRandomString(128);
+        const codeChallenge = await sha256(codeVerifier);
+        sessionStorage.setItem('code_verifier', codeVerifier);
+        sessionStorage.setItem('client_id', clientId);
+
+        const authUrl = new URL('https://github.com/login/oauth/authorize');
+        authUrl.searchParams.append('client_id', clientId);
+        authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
+        authUrl.searchParams.append('scope', 'user:email');
+        authUrl.searchParams.append('code_challenge', codeChallenge);
+        authUrl.searchParams.append('code_challenge_method', 'S256');
+        authUrl.searchParams.append('state', generateRandomString(32));
+
+        window.location.href = authUrl.toString();
+      } catch (e) {
+        showError('启动失败: ' + e.message);
+      }
+    }
+
+    async function handleCallback() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      if (!code) return;
+
+      showLoading(true);
+      const codeVerifier = sessionStorage.getItem('code_verifier');
+      const clientId = sessionStorage.getItem('client_id');
+
+      if (!codeVerifier || !clientId) {
+        showError('认证参数丢失，请重新登录');
+        showLoading(false);
+        return;
+      }
+
+      try {
+        // 检查是否在桌面环境中
+        if (window.EditorPreload && typeof window.EditorPreload.exchangeOAuthCode === 'function') {
+          // 在桌面环境中，通过桌面应用与后端通信
+          const result = await window.EditorPreload.exchangeOAuthCode({
+            code: code,
+            code_verifier: codeVerifier,
+            client_id: clientId,
+            redirect_uri: REDIRECT_URI
+          });
+          const token = result.token;
+          const user = result.user;
+          const email = result.email;
+          
+          // 保存到 localStorage 供桌面应用读取
+          localStorage.setItem('github_token', token);
+          localStorage.setItem('github_user', JSON.stringify(user));
+          localStorage.setItem('github_email', email);
+
+          // 显示用户信息
+          window.history.replaceState({}, '', window.location.pathname);
+          displayUserInfo(user, email, token);
+          showLoading(false);
+          
+          // 将 token 传递给桌面端
+          onTokenReceived(token);
+        } else {
+          // 在浏览器环境中，直接与后端通信（可能遇到 CORS 问题）
+          const res = await fetch(BACKEND_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: code,
+              code_verifier: codeVerifier,
+              client_id: clientId,
+              redirect_uri: REDIRECT_URI  // 必须传！
+            })
+          });
+
+          const data = await res.json();
+          if (data.error) throw new Error(data.error_description || data.error);
+
+          const token = data.access_token;
+
+          const userRes = await fetch('https://api.github.com/user', {
+            headers: { Authorization: `token ${token}`, 'User-Agent': 'OAuth-App' }
+          });
+          const user = await userRes.json();
+
+          let email = user.email;
+          if (!email) {
+            const emailRes = await fetch('https://api.github.com/user/emails', {
+              headers: { Authorization: `token ${token}`, 'User-Agent': 'OAuth-App' }
+            });
+            const emails = await emailRes.json();
+            email = emails.find(e => e.primary)?.email || '未公开';
+          }
+
+          // 保存到 localStorage 供桌面应用读取
+          localStorage.setItem('github_token', token);
+          localStorage.setItem('github_user', JSON.stringify(user));
+          localStorage.setItem('github_email', email);
+
+          // 显示用户信息
+          window.history.replaceState({}, '', window.location.pathname);
+          displayUserInfo(user, email, token);
+          showLoading(false);
+          
+          // 将 token 传递给桌面端
+          onTokenReceived(token);
+        }
+
+      } catch (e) {
+        showError('认证失败: ' + e.message);
+        showLoading(false);
+      }
+    }
+
+    window.displayUserInfo = function(user, email, token) {
+      console.log(`显示用户信息: ${user.login}, token长度: ${token.length}`);
+      
+      const loginSectionEl = document.getElementById('login-section');
+      const userInfoEl = document.getElementById('user-info');
+      const userAvatarEl = document.getElementById('user-avatar');
+      const usernameEl = document.getElementById('username');
+      const nameEl = document.getElementById('name');
+      const emailEl = document.getElementById('email');
+      const publicReposEl = document.getElementById('public-repos');
+      const tokenValueEl = document.getElementById('token-value');
+      
+      if (loginSectionEl) loginSectionEl.style.display = 'none';
+      if (userInfoEl) userInfoEl.style.display = 'block';
+      if (userAvatarEl) userAvatarEl.src = user.avatar_url;
+      if (usernameEl) usernameEl.textContent = user.login;
+      if (nameEl) nameEl.textContent = user.name || '未设置';
+      if (emailEl) emailEl.textContent = email;
+      if (publicReposEl) publicReposEl.textContent = user.public_repos;
+      if (tokenValueEl) tokenValueEl.textContent = token;
+    };
+
+    function copyToken() {
+      navigator.clipboard.writeText(document.getElementById('token-value').textContent);
+      const btn = event.target;
+      const orig = btn.textContent;
+      btn.textContent = '已复制';
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+
+    function logout() {
+      localStorage.clear();
+      sessionStorage.clear();
+      document.getElementById('user-info').style.display = 'none';
+      document.getElementById('login-section').style.display = 'block';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-message');
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 5000);
+    }
+
+    function showLoading(show) {
+      const loadingEl = document.getElementById('loading');
+      const loginSectionEl = document.getElementById('login-section');
+      const autoStartMessageEl = document.getElementById('auto-start-message');
+      
+      if (loadingEl) {
+        loadingEl.style.display = show ? 'block' : 'none';
+      }
+      
+      if (loginSectionEl) {
+        loginSectionEl.style.display = show ? 'none' : 'block';
+      }
+      
+      // 同时处理自动启动消息元素
+      if (autoStartMessageEl) {
+        autoStartMessageEl.style.display = show ? 'block' : 'none';
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log(`OAuth页面加载完成: ${oauthHash}`);
+      
+      const token = localStorage.getItem('github_token');
+      const user = localStorage.getItem('github_user');
+      const email = localStorage.getItem('github_email');
+      
+      if (token && user) displayUserInfo(JSON.parse(user), email, token);
+      handleCallback();
+      
+      // 检查是否在回调流程中，如果不是，则自动启动 OAuth
+      const params = new URLSearchParams(window.location.search);
+      
+      if (!params.has('code')) {
+        // 没有授权码，说明不是回调，自动开始 OAuth
+        setTimeout(() => {
+          startOAuth();
+        }, 1000); // 稍微延迟一下，让用户看到正在启动的消息
+      } else {
+        console.log('正在处理OAuth回调...');
+      }
+    });
+
+    // OAuth流程现在使用localStorage，不需要直接HTTP通信
+
+    // 在获取到token后调用这个函数
+    async function onTokenReceived(token) {
+      try {
+        // 将token存储到localStorage
+        const storageKey = `oauth_token_${oauthHash}`;
+        localStorage.setItem(storageKey, token);
+        
+        // 同时存储用户信息
+        const userInfo = {
+          token: token,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(`oauth_user_${oauthHash}`, JSON.stringify(userInfo));
+        
+        console.log('Token已存储到localStorage:', storageKey);
+        
+        // 向云端API发送token用于临时路由访问
+        await sendTokenToCloud(oauthHash, token);
+        
+        // 稍后关闭窗口
+        setTimeout(() => {
+          window.close();
+        }, 1500);
+      } catch (error) {
+        console.error('处理token失败:', error);
+        
+        // 备用方案：使用简单的时间戳
+        const backupKey = `oauth_token_backup_${oauthHash}`;
+        localStorage.setItem(backupKey, token);
+        console.log('使用备用key存储token:', backupKey);
+        
+        setTimeout(() => {
+          window.close();
+        }, 1500);
+      }
+    }
+
+    // 向云端发送token用于临时路由
+    async function sendTokenToCloud(hash, token) {
+      try {
+        console.log(`发送token到云端: ${hash.substring(0, 20)}...`);
+        
+        // 使用相对路径，通过Netlify函数访问
+        const backendUrl = '/.netlify/functions/store-token';
+        console.log(`发送请求到: ${backendUrl}`);
+        
+        const response = await fetch(backendUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            hash: hash,
+            token: token
+          })
+        });
+        
+        if (!response.ok) {
+          console.error(`服务器错误: ${response.status} ${response.statusText}`);
+          return;
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          console.log(`Token已成功发送到云端`);
+        } else {
+          console.error(`发送token到云端失败:`, result.error);
+        }
+      } catch (error) {
+        console.error(`发送token到云端出错:`, error.message);
+      }
+    }
+
+    // 检查桌面环境并自动关闭窗口
+    function checkDesktopAndClose() {
+      if (window.EditorPreload) {
+        // 在桌面环境中，通知应用token已接收并关闭窗口
+        setTimeout(() => {
+          window.close();
+        }, 1500); // 给用户一点时间看到成功消息
+      }
+    }
+
+    // 修改displayUserInfo函数，以便在显示用户信息后自动发送token
+    const originalDisplayUserInfo = displayUserInfo;
+    displayUserInfo = function(user, email, token) {
+      originalDisplayUserInfo(user, email, token);
+      onTokenReceived(token);
+      checkDesktopAndClose();
+    };
+  </script>
+</body>
+</html>
+

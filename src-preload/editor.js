@@ -29,9 +29,14 @@ contextBridge.exposeInMainWorld('EditorPreload', {
   readClipboard: () => ipcRenderer.invoke('read-clipboard'),
   writeClipboard: (text) => ipcRenderer.invoke('write-clipboard', text),
   fetchUserInfo: (token) => ipcRenderer.invoke('fetch-user-info', token),
-  // OAuth WebSocket相关API
+  // OAuth相关API
   onOAuthCompleted: (callback) => {
     ipcRenderer.on('oauth-completed', (event, data) => {
+      callback(data);
+    });
+  },
+  onOAuthError: (callback) => {
+    ipcRenderer.on('oauth-error', (event, data) => {
       callback(data);
     });
   }
