@@ -4,6 +4,8 @@ node_modules/
 .idea/
 .vscode
 scratch-gui/
+oauth-between/
+package-lock.json
 
 # Built files
 dist-renderer-webpack

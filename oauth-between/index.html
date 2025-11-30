@@ -100,31 +100,14 @@
   </div>
 
   <script>
-    // 生成OAuth哈希（与桌面端使用相同算法）
-    function generateOAuthHash() {
-      const timestamp = getCurrentTimestamp();
-      const deviceInfo = getDeviceInfo();
-      const data = `${deviceInfo}_${timestamp}`;
-      
-      // 使用Web Crypto API进行SHA256哈希
-      const encoder = new TextEncoder();
-      const dataBuffer = encoder.encode(data);
-      return window.crypto.subtle.digest('SHA-256', dataBuffer).then(hashBuffer => {
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        return `${hashHex}_${timestamp}`;
-      });
-    }
-
-    // 获取设备信息（与桌面端兼容）
+    // ======== 哈希生成逻辑（与桌面端完全一致） ========
     function getDeviceInfo() {
       const platform = getPlatform();
       const arch = getArchitecture();
-      const timezone = getTimezone();
-      return `plat_${platform}_arch_${arch}_tz_${timezone}`.replace(/[^a-zA-Z0-9]/g, '');
+      const timezoneOffset = -new Date().getTimezoneOffset();
+      return `plat_${platform}_arch_${arch}_tz_${timezoneOffset}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10);
     }
 
-    // 获取平台信息
     function getPlatform() {
       const userAgent = navigator.userAgent.toLowerCase();
       if (userAgent.includes('win')) return 'win32';
@@ -133,7 +116,6 @@
       return 'unknown';
     }
 
-    // 获取架构信息
     function getArchitecture() {
       const userAgent = navigator.userAgent;
       if (userAgent.includes('x86_64') || userAgent.includes('amd64')) return 'x64';
@@ -141,56 +123,58 @@
       return 'unknown';
     }
 
-    // 获取时区信息
-    function getTimezone() {
-      const offset = new Date().getTimezoneOffset();
-      return `tz_${offset}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10);
+    async function generateOAuthHash() {
+      const timestamp = Math.floor(Date.now() / (1000 * 60)) * 60 * 1000;
+      const deviceInfo = getDeviceInfo();
+      const data = `${deviceInfo}_${timestamp}`;
+      
+      try {
+        const encoder = new TextEncoder();
+        const dataBuffer = encoder.encode(data);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', dataBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const hash = `${hashHex}_${timestamp}`;
+        console.log('[OAuth-Between] Generated hash:', hash);
+        return hash;
+      } catch (err) {
+        console.error('[OAuth-Between] Failed to generate hash:', err);
+        throw err;
+      }
     }
 
-    // 获取当前时间戳（分钟级精度）
-    function getCurrentTimestamp() {
-      const now = Date.now();
-      return Math.floor(now / (1000 * 60)) * 60 * 1000;
-    }
+    // ======== OAuth 初始化 ========
 
-    // 获取URL参数中的哈希或生成新的哈希
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlHash = urlParams.get('hash');
-    
     // 正确后端地址
     const BACKEND_URL = 'https://02engine-desktop-oauth-backend.netlify.app/.netlify/functions/token';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     document.getElementById('callback-url').textContent = REDIRECT_URI;
+
+    // 获取URL参数中的哈希或生成新的哈希
+    const urlParams = new URLSearchParams(window.location.search);
+    let urlHashParam = urlParams.get('hash');
     
-    // 使用固定hash（不动态变化）
-    let oauthHash = urlHash;
+    // 如果URL中有hash参数，立即存入localStorage
+    if (urlHashParam) {
+      console.log('[OAuth-Between] Found hash in URL:', urlHashParam);
+      localStorage.setItem('oauth_hash', urlHashParam);
+    }
     
-    // 如果没有URL hash，生成固定hash
+    // 优先从localStorage读取hash（因为URL会在OAuth回调时被覆盖）
+    let oauthHash = localStorage.getItem('oauth_hash');
+    
+    console.log('[OAuth-Between] Using hash:', oauthHash);
+    
+    // 如果没有 hash，则生成一个（通常来自桌面端）
     if (!oauthHash) {
-      // 使用页面加载时的固定时间戳
-      const initTime = Math.floor(Date.now() / (1000 * 60)) * 60 * 1000;
-      const deviceInfo = getDeviceInfo();
-      const data = `${deviceInfo}_${initTime}`;
-      
-      // 使用与桌面端相同的哈希算法
-      const encoder = new TextEncoder();
-      const dataBuffer = encoder.encode(data);
-      window.crypto.subtle.digest('SHA-256', dataBuffer).then(hashBuffer => {
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        oauthHash = `${hashHex}_${initTime}`;
+      console.log('[OAuth-Between] No hash found, generating one...');
+      generateOAuthHash().then(hash => {
+        oauthHash = hash;
+        localStorage.setItem('oauth_hash', oauthHash);
+        console.log('[OAuth-Between] Hash:', oauthHash);
       }).catch(err => {
-        console.error('SHA-256计算失败:', err);
+        console.error('[OAuth-Between] Failed to generate hash:', err);
       });
-      
-      // 如果没有异步生成，则使用默认hash
-      setTimeout(() => {
-        if (!oauthHash) {
-          const defaultData = `plat_${getPlatform()}_arch_${getArchitecture()}_tz_${getTimezone()}_${initTime}`.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10);
-          const defaultHash = btoa(defaultData).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
-          oauthHash = `${defaultHash}_${initTime}`;
-        }
-      }, 100);
     }
 
     function generateRandomString(length) {
@@ -327,7 +311,7 @@
     }
 
     window.displayUserInfo = function(user, email, token) {
-      console.log(`显示用户信息: ${user.login}, token长度: ${token.length}`);
+      console.log(`[OAuth-Between] Displaying user info: ${user.login}, token length: ${token.length}`);
       
       const loginSectionEl = document.getElementById('login-section');
       const userInfoEl = document.getElementById('user-info');
@@ -342,7 +326,7 @@
       if (userInfoEl) userInfoEl.style.display = 'block';
       if (userAvatarEl) userAvatarEl.src = user.avatar_url;
       if (usernameEl) usernameEl.textContent = user.login;
-      if (nameEl) nameEl.textContent = user.name || '未设置';
+      if (nameEl) nameEl.textContent = user.name || 'Not set';
       if (emailEl) emailEl.textContent = email;
       if (publicReposEl) publicReposEl.textContent = user.public_repos;
       if (tokenValueEl) tokenValueEl.textContent = token;
@@ -390,7 +374,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      console.log(`OAuth页面加载完成: ${oauthHash}`);
+      console.log(`[OAuth-Between] Page loaded, hash: ${oauthHash}`);
       
       const token = localStorage.getItem('github_token');
       const user = localStorage.getItem('github_user');
@@ -408,17 +392,24 @@
           startOAuth();
         }, 1000); // 稍微延迟一下，让用户看到正在启动的消息
       } else {
-        console.log('正在处理OAuth回调...');
+        console.log('[OAuth-Between] Processing OAuth callback...');
       }
     });
-
-    // OAuth流程现在使用localStorage，不需要直接HTTP通信
 
     // 在获取到token后调用这个函数
     async function onTokenReceived(token) {
       try {
+        // 再次检查localStorage中的hash（防止URL覆盖）
+        const storedHash = localStorage.getItem('oauth_hash');
+        if (!storedHash) {
+          console.error('[OAuth-Between] No hash available, cannot store token');
+          return;
+        }
+        
+        console.log('[OAuth-Between] Token received, hash:', storedHash);
+        
         // 将token存储到localStorage
-        const storageKey = `oauth_token_${oauthHash}`;
+        const storageKey = `oauth_token_${storedHash}`;
         localStorage.setItem(storageKey, token);
         
         // 同时存储用户信息
@@ -426,24 +417,24 @@
           token: token,
           timestamp: Date.now()
         };
-        localStorage.setItem(`oauth_user_${oauthHash}`, JSON.stringify(userInfo));
+        localStorage.setItem(`oauth_user_${storedHash}`, JSON.stringify(userInfo));
         
-        console.log('Token已存储到localStorage:', storageKey);
+        console.log('[OAuth-Between] Token stored with key:', storageKey);
         
         // 向云端API发送token用于临时路由访问
-        await sendTokenToCloud(oauthHash, token);
+        await sendTokenToCloud(storedHash, token);
         
         // 稍后关闭窗口
         setTimeout(() => {
           window.close();
         }, 1500);
       } catch (error) {
-        console.error('处理token失败:', error);
+        console.error('[OAuth-Between] Error processing token:', error);
         
         // 备用方案：使用简单的时间戳
-        const backupKey = `oauth_token_backup_${oauthHash}`;
+        const backupKey = `oauth_token_backup_${Date.now()}`;
         localStorage.setItem(backupKey, token);
-        console.log('使用备用key存储token:', backupKey);
+        console.log('[OAuth-Between] Used backup key:', backupKey);
         
         setTimeout(() => {
           window.close();
@@ -454,11 +445,10 @@
     // 向云端发送token用于临时路由
     async function sendTokenToCloud(hash, token) {
       try {
-        console.log(`发送token到云端: ${hash.substring(0, 20)}...`);
+        console.log(`[OAuth-Between] Sending token to cloud for hash: ${hash.substring(0, 20)}...`);
         
         // 使用相对路径，通过Netlify函数访问
         const backendUrl = '/.netlify/functions/store-token';
-        console.log(`发送请求到: ${backendUrl}`);
         
         const response = await fetch(backendUrl, {
           method: 'POST',
@@ -472,19 +462,19 @@
         });
         
         if (!response.ok) {
-          console.error(`服务器错误: ${response.status} ${response.statusText}`);
+          console.error(`[OAuth-Between] Server error: ${response.status} ${response.statusText}`);
           return;
         }
         
         const result = await response.json();
         
         if (result.success) {
-          console.log(`Token已成功发送到云端`);
+          console.log(`[OAuth-Between] Token sent to cloud (Supabase) successfully`);
         } else {
-          console.error(`发送token到云端失败:`, result.error);
+          console.error(`[OAuth-Between] Failed to send token:`, result.error);
         }
       } catch (error) {
-        console.error(`发送token到云端出错:`, error.message);
+        console.error(`[OAuth-Between] Error sending token to cloud:`, error.message);
       }
     }
 
@@ -494,7 +484,7 @@
         // 在桌面环境中，通知应用token已接收并关闭窗口
         setTimeout(() => {
           window.close();
-        }, 1500); // 给用户一点时间看到成功消息
+        }, 1500);
       }
     }
 

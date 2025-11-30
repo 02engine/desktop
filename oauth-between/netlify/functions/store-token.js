@@ -1,3 +1,12 @@
+const { createClient } = require('@supabase/supabase-js');
+
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+  return createClient(supabaseUrl, supabaseKey);
+}
+
 exports.handler = async (event, context) => {
   // 处理CORS预检请求
   if (event.httpMethod === 'OPTIONS') {
@@ -22,6 +31,16 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      console.error('[Store-Token] Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+      return {
+        statusCode: 500,
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ error: 'Supabase credentials not configured' })
+      };
+    }
+
     const { hash, token } = JSON.parse(event.body);
     
     if (!hash || !token) {
@@ -31,20 +50,28 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 初始化全局存储
-    if (!global.tempTokens) {
-      global.tempTokens = new Map();
+    // 将 token 存储到 Supabase
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 分钟过期
+    
+    const { data, error } = await supabase
+      .from('oauth_tokens')
+      .upsert({
+        hash: hash,
+        token: token,
+        created_at: new Date().toISOString(),
+        expires_at: expiresAt.toISOString()
+      }, { onConflict: 'hash' });
+
+    if (error) {
+      console.error('[Store-Token] Supabase error:', error);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: '存储失败', message: error.message }),
+        headers: { 'Access-Control-Allow-Origin': '*' }
+      };
     }
 
-    // 存储token数据
-    const tokenData = {
-      token: token,
-      timestamp: Date.now()
-    };
-    
-    global.tempTokens.set(hash, tokenData);
-
-    console.log(`存储token: hash=${hash.substring(0, 10)}...`);
+    console.log(`[Store-Token] Stored token to Supabase: hash=${hash.substring(0, 10)}... expires at ${expiresAt.toISOString()}`);
 
     return {
       statusCode: 200,
@@ -54,13 +81,13 @@ exports.handler = async (event, context) => {
       },
       body: JSON.stringify({
         success: true,
-        message: 'Token已存储',
+        message: 'Token已存储到Supabase',
         hash: hash
       })
     };
 
   } catch (error) {
-    console.error('存储token失败:', error);
+    console.error('[Store-Token] 存储token失败:', error);
     
     return {
       statusCode: 500,

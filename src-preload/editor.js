@@ -40,6 +40,13 @@ contextBridge.exposeInMainWorld('EditorPreload', {
       callback(data);
     });
   }
+  ,
+  // 订阅桌面端日志，返回一个取消订阅函数
+  onDesktopLog: (callback) => {
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('desktop-log', listener);
+    return () => ipcRenderer.removeListener('desktop-log', listener);
+  }
 });
 
 let exportForPackager = () => Promise.reject(new Error('exportForPackager missing'));

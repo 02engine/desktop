@@ -562,7 +562,7 @@ class EditorWindow extends ProjectRunningWindow {
         const { code, code_verifier, client_id, redirect_uri } = params;
 
         // 向后端发送授权码以交换访问令牌
-        const response = await fetch('https://idyllic-kangaroo-a50663.netlify.app/.netlify/functions/token', {
+        const response = await fetch('https://02engine-desktop-oauth-between.netlify.app/.netlify/functions/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -580,79 +580,39 @@ class EditorWindow extends ProjectRunningWindow {
 
         const token = data.access_token;
 
-        // 获取用户信息
-        const userResponse = await fetch('https://api.github.com/user', {
-          headers: {
-            'Authorization': `token ${token}`,
-            'User-Agent': '02Engine-Desktop-OAuth'
-          }
-        });
-
-        if (!userResponse.ok) {
-          throw new Error('Failed to get user info');
-        }
-
-        const user = await userResponse.json();
-
-        // 获取用户邮箱
-        let email = user.email;
-        if (!email) {
-          const emailResponse = await fetch('https://api.github.com/user/emails', {
-            headers: {
-              'Authorization': `token ${token}`,
-              'User-Agent': '02Engine-Desktop-OAuth'
-            }
-          });
-          const emails = await emailResponse.json();
-          email = emails.find(e => e.primary)?.email || 'Not public';
-        }
-
-        // 返回用户数据
-        return { token, user, email };
+        // 不再在主进程获取 GitHub 用户信息；仅返回 token
+        return { token };
       } catch (error) {
         console.error('OAuth code exchange failed:', error);
         throw error;
       }
     });
 
-    // 处理打开 OAuth 窗口的请求
+    // 处理打开 OAuth 窗口的请求 - 使用系统浏览器而非嵌入窗口
     this.ipc.handle('open-oauth-window', async (event, url) => {
       try {
-        const { BrowserWindow } = require('electron');
+        const { shell } = require('electron');
         
         // 生成OAuth哈希
         const oauthHash = this.generateOAuthHash();
-        console.log('生成OAuth哈希:', oauthHash);
+        console.log('[Desktop OAuth] Generated hash:', oauthHash);
+        this.sendDesktopLog && this.sendDesktopLog('info', `Generated OAuth hash: ${oauthHash}`);
         
-        // 传递哈希参数给OAuth窗口
+        // 传递哈希参数给OAuth页面
         const oauthUrlWithHash = `${url}?hash=${oauthHash}`;
         
-        // 创建一个新的浏览器窗口用于 OAuth
-        const oauthWindow = new BrowserWindow({
-          width: 600,
-          height: 800,
-          webPreferences: {
-            preload: require('path').join(__dirname, '../preload/editor.js'),
-            nodeIntegration: false,
-            contextIsolation: true,
-            webSecurity: false // 为 OAuth 窗口禁用 webSecurity
-          },
-          parent: this.window, // 设置主窗口为父窗口
-          modal: false // 不设为模态，允许用户在窗口间切换
-        });
-
-        // 加载 OAuth URL
-        await oauthWindow.loadURL(oauthUrlWithHash);
-        
-        // 显示窗口
-        oauthWindow.show();
+        // 使用系统默认浏览器打开 OAuth 页面
+        await shell.openExternal(oauthUrlWithHash);
+        console.log('[Desktop OAuth] Opened in system browser:', oauthUrlWithHash);
         
         // 启动轮询获取token
         this.pollForOAuthToken(oauthHash);
+        this.sendDesktopLog && this.sendDesktopLog('info', `Started polling for token: ${oauthHash.substring(0,20)}...`);
         
         return true;
       } catch (error) {
-        console.error('Failed to open OAuth window:', error);
+        console.error('[Desktop OAuth] Failed to open OAuth:', error);
+        this.sendDesktopLog && this.sendDesktopLog('error', `Failed to open OAuth: ${error && error.message ? error.message : String(error)}`);
         throw error;
       }
     });
@@ -736,7 +696,21 @@ class EditorWindow extends ProjectRunningWindow {
   }
   
   // ============== OAuth 轮询相关方法 ==============
-  
+
+  /**
+   * 将日志发送到渲染进程（如果可用）
+   * @param {'debug'|'info'|'warn'|'error'} level
+   * @param {string} message
+   */
+  sendDesktopLog(level, message) {
+    try {
+      if (this.window && this.window.webContents) {
+        this.window.webContents.send('desktop-log', { level, message, timestamp: Date.now() });
+      }
+    } catch (e) {
+      console.error('[Desktop OAuth] Failed to send log to renderer', e);
+    }
+  }
   /**
    * 生成与oauth-between兼容的OAuth哈希
    * @returns {string} 哈希值
@@ -772,64 +746,40 @@ class EditorWindow extends ProjectRunningWindow {
       let attempts = 0;
       
       // 使用与oauth-between相同的域名，避免CORS问题
-      const backendUrl = 'https://idyllic-kangaroo-a50663.netlify.app/.netlify/functions/temp-token';
+      const backendUrl = 'https://02engine-desktop-oauth-between.netlify.app/.netlify/functions/temp-token';
       
       const poll = async () => {
         attempts++;
         
         if (attempts > maxAttempts) {
-          console.log(`OAuth轮询超时，已尝试${maxAttempts}次`);
-          reject(new Error('OAuth timeout: No token received within 90 seconds'));
+            console.log(`[Desktop OAuth] Polling timeout after ${maxAttempts} attempts`);
+            this.sendDesktopLog && this.sendDesktopLog('error', `Polling timeout after ${maxAttempts} attempts`);
+            reject(new Error('OAuth timeout: No token received within 90 seconds'));
           return;
         }
         
         try {
-          console.log(`OAuth轮询第${attempts}/${maxAttempts}次: ${backendUrl}/${oauthHash.substring(0, 20)}...`);
-          
-          const response = await privilegedFetch(`${backendUrl}/${oauthHash}`);
-          const data = typeof response === 'string' ? JSON.parse(response) : response;
+          console.log(`[Desktop OAuth] Poll attempt ${attempts}/${maxAttempts}: ${backendUrl}/${oauthHash.substring(0, 20)}...`);
+          this.sendDesktopLog && this.sendDesktopLog('debug', `Poll attempt ${attempts}/${maxAttempts}`);
+          // Use privilegedFetch.json to get parsed JSON (privilegedFetch returns Buffer)
+          const data = await privilegedFetch.json(`${backendUrl}/${oauthHash}`);
           
           if (data.success && data.token) {
-            console.log(`OAuth轮询成功获取token: ${data.token.substring(0, 20)}...`);
-            // 处理token获取用户信息
-            try {
-              const userResponse = await privilegedFetch('https://api.github.com/user', {
-                headers: {
-                  'Authorization': `token ${data.token}`,
-                  'User-Agent': '02Engine-Desktop-OAuth-Polling'
-                }
-              });
-              
-              const user = typeof userResponse === 'string' ? JSON.parse(userResponse) : userResponse;
-              
-              // 获取用户邮箱
-              let email = user.email;
-              if (!email) {
-                const emailResponse = await privilegedFetch('https://api.github.com/user/emails', {
-                  headers: {
-                    'Authorization': `token ${data.token}`,
-                    'User-Agent': '02Engine-Desktop-OAuth-Polling'
-                  }
-                });
-                const emails = typeof emailResponse === 'string' ? JSON.parse(emailResponse) : emailResponse;
-                email = emails.find(e => e.primary)?.email || 'Not public';
-              }
-              
-              resolve({ token: data.token, user, email });
-              return;
-            } catch (userError) {
-              console.error(`获取用户信息失败: ${userError.message}`);
-              reject(new Error(`获取用户信息失败: ${userError.message}`));
-              return;
-            }
+            console.log(`[Desktop OAuth] Successfully got token: ${data.token.substring(0, 20)}...`);
+            this.sendDesktopLog && this.sendDesktopLog('info', `Successfully got token: ${data.token.substring(0, 20)}... (Attempt ${attempts})`);
+            // 仅返回 token，不再在主进程尝试获取 GitHub 用户信息
+            resolve({ token: data.token });
+            return;
           }
           
           if (!data.success) {
-            console.log(`OAuth轮询失败: ${data.error || '未知错误'}`);
+            console.log(`[Desktop OAuth] Poll failed: ${data.error || 'Unknown error'}`);
+            this.sendDesktopLog && this.sendDesktopLog('warn', `Poll failed: ${data.error || 'Unknown error'}`);
           }
           
         } catch (error) {
-          console.error(`OAuth轮询第${attempts}次出错: ${error.message}`);
+          console.error(`[Desktop OAuth] Polling error on attempt ${attempts}: ${error.message}`);
+          this.sendDesktopLog && this.sendDesktopLog('error', `Polling error: ${error.message}`);
         }
         
         // 每500ms轮询一次
@@ -897,7 +847,7 @@ class EditorWindow extends ProjectRunningWindow {
     }
 
     // Open oauth-proxy in a new window
-    if (url.href.startsWith('https://idyllic-kangaroo-a50663.netlify.app/')) {
+    if (url.href.startsWith('https://02engine-desktop-oauth-between.netlify.app/')) {
       // 允许打开远程 oauth-proxy 页面
       return {
         action: 'allow',
@@ -939,19 +889,30 @@ class EditorWindow extends ProjectRunningWindow {
    * @param {string} oauthHash - OAuth哈希
    */
   pollForOAuthToken(oauthHash) {
-    console.log(`OAuth轮询开始: ${oauthHash.substring(0, 20)}...`);
+    console.log(`[Desktop OAuth] Starting polling: ${oauthHash.substring(0, 20)}...`);
+    this.sendDesktopLog && this.sendDesktopLog('info', `Starting polling: ${oauthHash.substring(0, 20)}...`);
     this.startOAuthPolling(oauthHash)
-      .then(result => {
-        console.log(`OAuth轮询成功: ${result.user.login}, token长度=${result.token.length}`);
-        // 向渲染进程发送认证完成信号
+      .then(async result => {
+        console.log(`[Desktop OAuth] Polling succeeded, token length=${result.token.length}`);
+        this.sendDesktopLog && this.sendDesktopLog('info', `Polling succeeded (token received)`);
+        // 尝试直接写入渲染进程的 localStorage，确保不会因为渲染端未及时订阅而丢失 token
+        try {
+          const setJs = `try { localStorage.setItem('github_token', ${JSON.stringify(result.token)}); true; } catch(e) { false; }`;
+          const wrote = await this.window.webContents.executeJavaScript(setJs);
+          console.log('[Desktop OAuth] Wrote token to renderer localStorage:', wrote);
+          this.sendDesktopLog && this.sendDesktopLog('info', `Wrote token to renderer localStorage: ${wrote}`);
+        } catch (e) {
+          console.error('[Desktop OAuth] Failed to write token to renderer localStorage:', e);
+          this.sendDesktopLog && this.sendDesktopLog('warn', `Failed to write token to renderer localStorage: ${e && e.message ? e.message : String(e)}`);
+        }
+        // 向渲染进程发送认证完成信号（仅包含 token）
         this.window.webContents.send('oauth-completed', {
-          token: result.token,
-          user: result.user,
-          email: result.email
+          token: result.token
         });
       })
       .catch(error => {
-        console.error(`OAuth轮询失败: ${error.message}`);
+        console.error(`[Desktop OAuth] Polling failed: ${error.message}`);
+        this.sendDesktopLog && this.sendDesktopLog('error', `Polling failed: ${error.message}`);
         // 发送错误信号给渲染进程
         this.window.webContents.send('oauth-error', {
           error: error.message
@@ -965,6 +926,7 @@ class EditorWindow extends ProjectRunningWindow {
   cleanupOAuthResources() {
     // 在这里清理轮询相关的资源
     console.log('清理OAuth资源');
+    this.sendDesktopLog && this.sendDesktopLog('info', '清理OAuth资源');
   }
 
   /**
