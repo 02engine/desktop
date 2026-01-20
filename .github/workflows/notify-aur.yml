@@ -1,44 +1,18 @@
-name: Notify AUR repo on new release (curl dispatch)
+name: Release → Dispatch Hello to B
 
 on:
   release:
-    types: [published]
-  # 临时加这个用于手动测试
-  workflow_dispatch:
+    types: [published]          # release 发布时触发
+  workflow_dispatch:            # 你也可以手动测试
 
 jobs:
-  trigger-sync:
+  dispatch-hello:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger sync-version workflow in aur repo via API
-        env:
-          GH_TOKEN: ${{ secrets.AUR_REPO_PAT }}  # 用 classic PAT
-          TARGET_REPO: 02engine/02engine-aur
-          WORKFLOW_FILE: sync-version.yml       # aur 仓库里你的 workflow 文件名（必须在 default branch 上）
-          REF: main                             # aur 仓库要运行的分支（通常 main）
-        run: |
-          # 构建 payload：传 version 和 hello
-          PAYLOAD=$(jq -n \
-            --arg version "${{ github.event.release.tag_name || 'manual-test' }}" \
-            --arg greeting "hello from desktop" \
-            '{ ref: $ENV.REF, inputs: { version: $version, greeting: $greeting } }')
-
-          # 调用 API 触发 workflow_dispatch（注意：这是 workflow_dispatch，不是 repository_dispatch）
-          RESPONSE=$(curl -s -w "%{http_code}" \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$TARGET_REPO/actions/workflows/$WORKFLOW_FILE/dispatches" \
-            -d "$PAYLOAD")
-
-          HTTP_CODE=${RESPONSE: -3}
-          BODY=${RESPONSE%???}
-
-          echo "HTTP Status: $HTTP_CODE"
-          echo "Response: $BODY"
-
-          if [[ "$HTTP_CODE" != "204" && "$HTTP_CODE" != "200" ]]; then
-            echo "Failed to trigger workflow!"
-            exit 1
-          fi
+      - name: Send hello to B repo
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.ORG_DISPATCH_TOKEN }}              # 组织 secret
+          repository: ${{ github.repository_owner }}/02engine-aur  # 替换成你的 B 仓库名，例如 deep-sea/my-aur-pkg
+          event-type: hello-event                           # 自定义事件名
+          client-payload: '{"message": "hello from A repo release ${{ github.event.release.tag_name }}"}'
