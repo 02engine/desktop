@@ -1,0 +1,22 @@
+name: Notify AUR repo - sync-version
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  trigger-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch sync-version event with hello
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.AUR_REPO_PAT }}
+          repository: 02engine/02engine-aur
+          event-type: sync-version                  # ← 这就是你要触发的特定工作流的事件类型
+          client-payload: >-
+            {
+              "version": "${{ github.event.release.tag_name }}",
+              "greeting": "hello"
+            }
