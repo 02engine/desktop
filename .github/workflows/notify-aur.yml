@@ -15,4 +15,4 @@ jobs:
           token: ${{ secrets.ORG_DISPATCH_TOKEN }}              # 组织 secret
           repository: ${{ github.repository_owner }}/02engine-aur  # 替换成你的 B 仓库名，例如 deep-sea/my-aur-pkg
           event-type: hello-event                           # 自定义事件名
-          client-payload: '{"message": "hello from A repo release ${{ github.event.release.tag_name }}"}'
+          client-payload: '{"message": "${{ github.event.release.tag_name }}"}'
