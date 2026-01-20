@@ -6,7 +6,7 @@ on:
   workflow_dispatch:            # 你也可以手动测试
 
 jobs:
-  dispatch-hello:
+  dispatch-AUR:
     runs-on: ubuntu-latest
     steps:
       - name: Send tag to aur repo
