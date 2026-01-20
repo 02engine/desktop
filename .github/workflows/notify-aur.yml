@@ -1,4 +1,4 @@
-name: Release → Dispatch Hello to B
+name: Release → Dispatch Tag to 02engine-aur
 
 on:
   release:
@@ -9,10 +9,10 @@ jobs:
   dispatch-hello:
     runs-on: ubuntu-latest
     steps:
-      - name: Send hello to B repo
+      - name: Send tag to aur repo
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.ORG_DISPATCH_TOKEN }}              # 组织 secret
           repository: ${{ github.repository_owner }}/02engine-aur  # 替换成你的 B 仓库名，例如 deep-sea/my-aur-pkg
-          event-type: hello-event                           # 自定义事件名
+          event-type: updata-aur                           # 自定义事件名
           client-payload: '{"message": "${{ github.event.release.tag_name }}"}'
