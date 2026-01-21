@@ -48,7 +48,7 @@ jobs:
       - name: Send repository_dispatch to B repository
         if: ${{ !inputs.dry_run }}
         env:
-          GH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ secrets.ORG_DISPATCH_TOKEN }}
         run: |
           OWNER="${{ vars.AUR_REPO_OWNER }}"
           REPO="${{ vars.AUR_REPO_NAME }}"
