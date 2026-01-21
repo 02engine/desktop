@@ -7,6 +7,7 @@ on:
         description: '要推送的 tag（例如 v1.1.10-78a11098）'
         required: true
         type: string
+        default: "v1.1.10-78a11098"
       message:
         description: '可选附加消息（会显示在 B 仓库的 dispatch 日志中）'
         required: false
@@ -47,36 +48,12 @@ jobs:
 
       - name: Send repository_dispatch to B repository
         if: ${{ !inputs.dry_run }}
-        env:
-          GH_TOKEN: ${{ secrets.ORG_DISPATCH_TOKEN }}
-        run: |
-          OWNER="02engine"
-          REPO="02engine-aur"
-          EVENT_TYPE="updata-aur"
-
-          PAYLOAD=$(jq -n \
-            --arg tag "${{ inputs.tag }}" \
-            --arg message "${{ inputs.message }}" \
-            --arg triggered_by "${{ github.actor }}" \
-            --arg workflow_run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            '{
-              tag: $tag,
-              message: $message,
-              triggered_by: $triggered_by,
-              workflow_run: $workflow_run,
-              dispatched_at: now | todate
-            }')
-
-          echo "Sending dispatch event..."
-          echo "$PAYLOAD" | jq .
-
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "/repos/$OWNER/$REPO/dispatches" \
-            -f "event_type=$EVENT_TYPE" \
-            -f "client_payload=$PAYLOAD"
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.ORG_DISPATCH_TOKEN }}              # 组织 secret
+          repository: ${{ github.repository_owner }}/02engine-aur  # 替换成你的 B 仓库名，例如 deep-sea/my-aur-pkg
+          event-type: updata-aur                           # 自定义事件名
+          client-payload: '{"message": "${{ inputs.tag }}"}'
 
       - name: Dry run notice
         if: ${{ inputs.dry_run }}
