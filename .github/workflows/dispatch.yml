@@ -1,0 +1,86 @@
+name: Dispatch Tag to AUR Repository (B)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要推送的 tag（例如 v1.1.10-78a11098）'
+        required: true
+        type: string
+      message:
+        description: '可选附加消息（会显示在 B 仓库的 dispatch 日志中）'
+        required: false
+        type: string
+        default: "Manual dispatch from A repository"
+      dry_run:
+        description: '是否只测试不真正发送（true=只打印 payload，不 dispatch）'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show what will be dispatched
+        run: |
+          echo "Repository to dispatch:    ${{ vars.AUR_REPO_OWNER }}/${{ vars.AUR_REPO_NAME }}"
+          echo "Event type:                 updata-aur"
+          echo "Tag to send:                ${{ inputs.tag }}"
+          echo "Message:                    ${{ inputs.message }}"
+          echo "Dry run mode:               ${{ inputs.dry_run }}"
+          echo ""
+          echo "Payload preview:"
+          echo "----------------"
+          jq -n \
+            --arg tag "${{ inputs.tag }}" \
+            --arg message "${{ inputs.message }}" \
+            --arg triggered_by "${{ github.actor }}" \
+            --arg workflow_run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{
+              tag: $tag,
+              message: $message,
+              triggered_by: $triggered_by,
+              workflow_run: $workflow_run,
+              dispatched_at: now | todate
+            }'
+
+      - name: Send repository_dispatch to B repository
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+        run: |
+          OWNER="${{ vars.AUR_REPO_OWNER }}"
+          REPO="${{ vars.AUR_REPO_NAME }}"
+          EVENT_TYPE="updata-aur"
+
+          PAYLOAD=$(jq -n \
+            --arg tag "${{ inputs.tag }}" \
+            --arg message "${{ inputs.message }}" \
+            --arg triggered_by "${{ github.actor }}" \
+            --arg workflow_run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{
+              tag: $tag,
+              message: $message,
+              triggered_by: $triggered_by,
+              workflow_run: $workflow_run,
+              dispatched_at: now | todate
+            }')
+
+          echo "Sending dispatch event..."
+          echo "$PAYLOAD" | jq .
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$OWNER/$REPO/dispatches" \
+            -f "event_type=$EVENT_TYPE" \
+            -f "client_payload=$PAYLOAD"
+
+      - name: Dry run notice
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo ""
+          echo "Dry run 模式：未实际发送 dispatch 事件"
+          echo "如果要去真正发送，请把 dry_run 改为 false 再运行"
