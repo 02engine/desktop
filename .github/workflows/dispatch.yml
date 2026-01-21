@@ -50,8 +50,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ORG_DISPATCH_TOKEN }}
         run: |
-          OWNER="${{ vars.AUR_REPO_OWNER }}"
-          REPO="${{ vars.AUR_REPO_NAME }}"
+          OWNER="02engine"
+          REPO="02engine-aur"
           EVENT_TYPE="updata-aur"
 
           PAYLOAD=$(jq -n \
