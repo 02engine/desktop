@@ -1,7 +1,7 @@
 {
   "name": "02Engine",
   "description": "Better Scratch.Based on Turbowarp.",
-  "version": "1.1.11",
+  "version": "1.0.0",
   "license": "GPL-3.0",
   "author": {
     "email": "ericmu20101103@163.com",
@@ -59,6 +59,7 @@
     "email": "ericmu20101103@163.com"
   },
   "main": "./src-main/entrypoint.js",
+  "tw_update": true,
   "build": {
     "appId": "02Studio.02Engine.desktop",
     "productName": "02Engine",

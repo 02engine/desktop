@@ -25,13 +25,10 @@ class UpdateWindow extends AbstractWindow {
       };
     });
 
-    this.ipc.handle('download', () => {
+this.ipc.handle('download', () => {
       this.window.destroy();
 
-      const params = new URLSearchParams();
-      params.set('from', currentVersion);
-      params.set('to', latestVersion);
-      openExternal(`https://desktop.turbowarp.org/update_available?${params}`);
+      openExternal(`https://download.02engine.02studio.xyz/${latestVersion}/`);
     });
 
     const ignore = (permanently) => {

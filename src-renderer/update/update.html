@@ -54,9 +54,7 @@
         color: black;
         background-color: #24cd11;
       }
-      .ignore-button {
 
-      }
       label {
         cursor: pointer;
       }
@@ -94,7 +92,7 @@
       <p class="normal-description if-normal"></p>
       <p class="security-description if-security"></p>
       <script>
-        const appNameVersion = `${appName} v${info.latestVersion}`;
+        const appNameVersion = `${appName} ${info.latestVersion} `;
         document.querySelector('.normal-description').textContent = strings['update.normal-description'].replace('{appNameVersion}', appNameVersion);
         document.querySelector('.security-description').textContent = strings['update.security-description'].replace('{appNameVersion}', appNameVersion);;
       </script>
@@ -169,7 +167,7 @@
         };
 
         const changelog = document.querySelector('.update-log');
-        fetch(`https://desktop.turbowarp.org/changelog.json?version=${info.latestVersion}`)
+        fetch(`https://editor.02engine.org/changelog.json?version=${info.latestVersion}`)
           .then((res) => {
             if (!res.ok) {
               throw new Error(`HTTP error ${res.status}`);
