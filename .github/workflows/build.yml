@@ -18,14 +18,14 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
-    - name: Clean cache
-      run: npm cache clean --force --loglevel=info
+    - name: Setup bun ⚙️
+      uses: oven-sh/setup-bun@v2
     - name: Install dependencies
-      run: npm install --force --loglevel=info
+      run: bun install --force --loglevel=info
     - name: Fetch
-      run: npm run fetch
+      run: bun run fetch
     - name: Compile
-      run: npm run webpack:prod
+      run: bun run webpack:prod
     - name: Package
       run: |
         node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
@@ -133,14 +133,14 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
-    - name: Clean cache
-      run: npm cache clean --force --loglevel=info
+    - name: Setup bun ⚙️
+      uses: oven-sh/setup-bun@v2
     - name: Install dependencies
-      run: npm install --force --loglevel=info
+      run: bun install --force --loglevel=info
     - name: Fetch
-      run: npm run fetch
+      run: bun run fetch
     - name: Compile
-      run: npm run webpack:prod
+      run: bun run webpack:prod
     - name: Package
       run: |
         node release-automation/build.js --mac --universal
@@ -179,24 +179,24 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 22
+    - name: Setup bun ⚙️
+      uses: oven-sh/setup-bun@v2
     # The repository being on D: means that node_modules IO will be fast, but npm still downloads
     # packages to a temporary folder for caching which is on C: by default. We need to make sure
     # npm uses the D: drive instead otherwise we still get bottlenecked by C:.
     - name: "Configure npm to use D: drive"
       run: |
-        npm config set cache D:\npm-cache
-        npm config set prefix D:\npm-prefix
-    - name: Clean cache
-      run: npm cache clean --force --loglevel=info
+        bun config set cache D:\npm-cache
+        bun config set prefix D:\npm-prefix
     - name: Install dependencies
       working-directory: D:\repo
-      run: npm install --force --loglevel=info
+      run: bun install --force --loglevel=info
     - name: Fetch
       working-directory: D:\repo
-      run: npm run fetch
+      run: bun run fetch
     - name: Compile
       working-directory: D:\repo
-      run: npm run webpack:prod
+      run: bun run webpack:prod
     - name: Package
       working-directory: D:\repo
       run: |
