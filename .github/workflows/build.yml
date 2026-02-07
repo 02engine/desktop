@@ -184,13 +184,13 @@ jobs:
     # The repository being on D: means that node_modules IO will be fast, but npm still downloads
     # packages to a temporary folder for caching which is on C: by default. We need to make sure
     # npm uses the D: drive instead otherwise we still get bottlenecked by C:.
-    - name: "Configure npm to use D: drive"
+    - name: "Configure Bun cache and prefix to D: drive"
       run: |
-        bun config set cache D:\npm-cache
-        bun config set prefix D:\npm-prefix
+        echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
+        echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
     - name: Install dependencies
       working-directory: D:\repo
-      run: bun install --force --loglevel=info
+      run: bun install --loglevel=info
     - name: Fetch
       working-directory: D:\repo
       run: bun run fetch
