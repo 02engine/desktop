@@ -13,18 +13,27 @@ jobs:
       with:
         submodules: recursive
         persist-credentials: false
+
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 22
+
+    - name: Setup bun ⚙️
+      uses: oven-sh/setup-bun@v2
+
     - name: Clean cache
-      run: npm cache clean --force --loglevel=info
+      run: bun cache clean --force --loglevel=info
+
     - name: Install dependencies
-      run: npm install --force --loglevel=info
+      run: bun install --loglevel=info
+
     - name: Prepare extensions
       # Don't need to do a full fetch, that would just cause a lot of unnecessary traffic
       run: node scripts/prepare-extensions.js
+
     - name: Compile
       run: npm run webpack:compile
+
     - name: Package
       run: npm run electron:package:dir
