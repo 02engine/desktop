@@ -1,8 +1,9 @@
 name: Release → Dispatch Tag to 02engine-aur
 
 on:
-  release:
-    types: [published]          # release 发布时触发
+  workflow_run:
+    workflows: ["Release"] 
+    types: [completed]  
   workflow_dispatch:            # 你也可以手动测试
 
 jobs:
