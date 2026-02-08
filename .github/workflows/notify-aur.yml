@@ -10,10 +10,18 @@ jobs:
   dispatch-AUR:
     runs-on: ubuntu-latest
     steps:
-      - name: Send tag to aur repo
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.ORG_DISPATCH_TOKEN }}              # 组织 secret
-          repository: ${{ github.repository_owner }}/02engine-aur  # 替换成你的 B 仓库名，例如 deep-sea/my-aur-pkg
-          event-type: updata-aur                           # 自定义事件名
-          client-payload: '{"tag": "${{ github.event.release.tag_name }}"}'
+        - name: Get latest release tag
+          uses: pozetroninc/github-action-get-latest-release@master
+          id: latest
+          with:
+            repository: ${{ github.repository }}
+            excludes: draft
+            token: ${{ secrets.GITHUB_TOKEN }}
+
+        - name: Send tag to aur repo
+          uses: peter-evans/repository-dispatch@v3
+          with:
+              token: ${{ secrets.ORG_DISPATCH_TOKEN }}          
+              repository: ${{ github.repository_owner }}/02engine-aur  
+              event-type: updata-aur                           
+              client-payload: '{"tag": "${{ steps.latest.outputs.release }}"}'
