@@ -41,6 +41,8 @@ if (!settings.hardwareAcceleration) {
 // Workaround for https://github.com/electron/electron/issues/46538
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('gtk-version', '3');
+  // Enable Wayland support via Ozone platform
+  app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
 }
 
 app.on('session-created', (session) => {
