@@ -5,7 +5,7 @@ on:
 
 jobs:
   # debian 系
-  build-linux (debian, x64):
+  build-linux (debian x64):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -42,7 +42,7 @@ jobs:
           name: linux-debian-x64
           path: dist/*.deb
 
-  build-linux (debian, armv7l):
+  build-linux (debian armv7l):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -79,7 +79,7 @@ jobs:
           name: linux-debian-armv7l
           path: dist/*.deb
 
-  build-linux (debian, arm64):
+  build-linux (debian arm64):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -118,7 +118,7 @@ jobs:
 
 
   # tarball 系
-  build-linux (tarball, x64):
+  build-linux (tarball x64):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -155,7 +155,7 @@ jobs:
           name: linux-tarball-x64
           path: dist/*.tar.gz
 
-  build-linux (tarball, armv7l):
+  build-linux (tarball armv7l):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -192,7 +192,7 @@ jobs:
           name: linux-tarball-armv7l
           path: dist/*.tar.gz
 
-  build-linux (tarball, arm64):
+  build-linux (tarball arm64):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -231,7 +231,7 @@ jobs:
 
 
   # AppImage 系
-  build-linux (appimage, x64):
+  build-linux (appimage x64):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -268,7 +268,7 @@ jobs:
           name: linux-appimage-x64
           path: dist/*.AppImage
 
-  build-linux (appimage, armv7l):
+  build-linux (appimage armv7l):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -305,7 +305,7 @@ jobs:
           name: linux-appimage-armv7l
           path: dist/*.AppImage
 
-  build-linux (appimage, arm64):
+  build-linux (appimage arm64):
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -343,8 +343,8 @@ jobs:
           path: dist/*.AppImage
 
 build-arch-from-debian-x64:
-  name: build Linux (arch from debian, x64)
-  needs: build-linux (debian, x64)
+  name: build Linux (arch from debian x64)
+  needs: build-linux (debian x64)
   runs-on: ubuntu-latest
   container:
     image: archlinux:base-devel
@@ -420,8 +420,8 @@ build-arch-from-debian-x64:
           /workspace/dist/*.pkg.tar.zst
 
 build-arch-from-debian-arm64:
-  name: build Linux (arch from debian, arm64)
-  needs: build-linux (debian, arm64)
+  name: build Linux (arch from debian arm64)
+  needs: build-linux (debian arm64)
   runs-on: ubuntu-latest
   container:
     image: archlinux:base-devel
@@ -495,8 +495,8 @@ build-arch-from-debian-arm64:
           /workspace/dist/*.pkg.tar.zst
 
 build-arch-from-debian-armv7l:
-  name: build Linux (arch from debian, armv7l)
-  needs: build-linux (debian, armv7l)
+  name: build Linux (arch from debian armv7l)
+  needs: build-linux (debian armv7l)
   runs-on: ubuntu-latest
   container:
     image: archlinux:base-devel
