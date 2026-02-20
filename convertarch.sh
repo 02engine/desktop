@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set +e
 set -uo pipefail
 IFS=$'\n\t'
@@ -13,17 +12,18 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-log_info()  { echo -e "${MAIN_COLOR}[INFO]${NC}  $1"; }
-log_warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
+log_info()  { echo -e "${MAIN_COLOR}[INFO]${NC} $1"; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-log_step()  { echo -e "${MAIN_COLOR}[STEP]${NC}  $1"; }
+log_step()  { echo -e "${MAIN_COLOR}[STEP]${NC} $1"; }
 log_sep()   { echo -e "${MAIN_COLOR}----------------------------------------${NC}"; }
-safe_run()  { "$@" 2>/dev/null || true; }
+
+safe_run() { "$@" 2>/dev/null || true; }
 
 check_prerequisites() {
-    log_step "环境检查"
-    [[ -d "$DIST_DIR" ]] || { log_error "dist 目录不存在"; exit 1; }
-    command -v debtap &>/dev/null || { log_error "debtap 未安装，请先安装 debtap"; exit 1; }
+    log_step "Checking environment"
+    [[ -d "$DIST_DIR" ]] || { log_error "dist directory does not exist"; exit 1; }
+    command -v debtap &>/dev/null || { log_error "debtap is not installed. Please install debtap first."; exit 1; }
     [[ -d "$OUTPUT_DIR" ]] || mkdir -p "$OUTPUT_DIR"
     safe_run rm -f .PKGINFO .INSTALL .MTREE *.deb *.pkg.tar.* *.tar.*
     safe_run rm -rf pkg/ src/
@@ -36,27 +36,26 @@ convert_single_package() {
     local deb_file="$1"
     local idx="$2"
     local total="$3"
-
     local deb_name="${deb_file##*/}"
     local base_name="${deb_name%.deb}"
 
-    log_step "转换中 [$idx/$total]: $base_name"
+    log_step "Converting [$idx/$total]: $base_name"
 
-    cp -f "$deb_file" "./$deb_name" || { log_error "文件复制失败"; return 1; }
+    cp -f "$deb_file" "./$deb_name" || { log_error "Failed to copy file"; return 1; }
 
-    # debtap 交互式输入：y y n n 回车 回车
+    # debtap interactive input: y y n n Enter Enter
     local input=$(mktemp)
     printf "y\ny\nn\nn\n\n\n" > "$input"
     debtap -q "$deb_name" < "$input" || true
     rm -f "$input"
 
     local arch_pkg=$(find . -maxdepth 1 \( -name "*.pkg.tar.*" -o -name "*.tar.xz" -o -name "*.tar.zst" \) -type f -print -quit)
-    [[ -z "$arch_pkg" ]] && { log_error "转换未生成 Arch 包"; safe_run rm -f "$deb_name"; return 1; }
+    [[ -z "$arch_pkg" ]] && { log_error "No Arch package was generated"; safe_run rm -f "$deb_name"; return 1; }
 
     local temp_dir=$(mktemp -d)
     if ! bsdtar -xf "$arch_pkg" -C "$temp_dir" 2>/dev/null; then
-        log_warn "解包失败，直接保留原包"
-        mv "$arch_pkg" "$OUTPUT_DIR/${base_name}-arch-$(date +%Y%m%d-%H%M).pkg.tar.zst"
+        log_warn "Failed to extract package, keeping original output"
+        mv "$arch_pkg" "$OUTPUT_DIR/${base_name}.pkg.tar.zst"
         rm -rf "$temp_dir"
         safe_run rm -f "$deb_name"
         return 0
@@ -64,31 +63,29 @@ convert_single_package() {
 
     local pkginfo="$temp_dir/.PKGINFO"
     if [[ -f "$pkginfo" ]]; then
-        log_info "优化 .PKGINFO 中"
-
-        # 精准删除只有“gtk”这个依赖的行（不会删 gtk3/gtk4/libgtk-3-0 等）
+        log_info "Optimizing .PKGINFO"
+        # Remove exact "gtk" dependency (won't match gtk3/gtk4/libgtk-3-0 etc.)
         sed -i '/^depend[[:space:]]*=[[:space:]]*gtk$/d' "$pkginfo"
-
-        # 删除 GObject Introspection 相关依赖（常见于 Debian → Arch 转换垃圾）
+        # Remove GObject Introspection junk (common in deb→arch conversion)
         sed -i '/depend[[:space:]]*=[[:space:]]*gir1.2-/d' "$pkginfo"
-
-        # 统一 license 和 packager（按你原来的习惯）
+        # Standardize license & packager
         sed -i 's/^license[[:space:]]*=.*$/license = GPL-3.0/' "$pkginfo"
         sed -i 's/^packager[[:space:]]*=.*$/packager = Webpack/' "$pkginfo"
         grep -q '^packager' "$pkginfo" || echo "packager = Webpack" >> "$pkginfo"
     fi
 
-    local final_name="$OUTPUT_DIR/${base_name}-arch-$(date +%Y%m%d-%H%M).pkg.tar.zst"
+    # Changed: simpler filename without -arch- and without timestamp
+    local final_name="$OUTPUT_DIR/${base_name}.pkg.tar.zst"
 
-    # 统一用 zstd -19 最高压缩重新打包（体积最小，兼容性最好）
+    # Re-pack with zstd -19 (best compression, good compatibility)
     (cd "$temp_dir" && bsdtar -cf - .PKGINFO .BUILDINFO .MTREE .INSTALL * 2>/dev/null) \
         | zstd -q -19 > "$final_name"
 
     rm -rf "$temp_dir" "$arch_pkg" "$deb_name"
-    local size=$(du -h "$final_name" 2>/dev/null | cut -f1)
-    log_info "完成 → $(basename "$final_name")  ($size)"
-    log_sep
 
+    local size=$(du -h "$final_name" 2>/dev/null | cut -f1)
+    log_info "Done → $(basename "$final_name") ($size)"
+    log_sep
     return 0
 }
 
@@ -102,43 +99,44 @@ cleanup_cache() {
 main() {
     clear
     echo -e "${MAIN_COLOR}=================================================${NC}"
-    echo -e "${MAIN_COLOR}        02Engine DEB → Arch 包转换器${NC}"
+    echo -e "${MAIN_COLOR} 02Engine DEB → Arch Package Converter${NC}"
     echo -e "${MAIN_COLOR}=================================================${NC}"
-    echo -e "${YELLOW}输出目录: $(pwd)/$OUTPUT_DIR${NC}\n"
+    echo -e "${YELLOW}Output directory: $(pwd)/$OUTPUT_DIR${NC}\n"
 
     check_prerequisites
 
     local files=()
     while IFS= read -r -d '' f; do files+=("$f"); done < <(get_deb_packages)
-    (( ${#files[@]} == 0 )) && { log_warn "dist 目录下未找到任何 .deb 包"; exit 0; }
+
+    (( ${#files[@]} == 0 )) && { log_warn "No .deb packages found in dist directory"; exit 0; }
 
     local total=${#files[@]} success=0 fail=0
-    log_info "共发现 $total 个 deb 包，开始转换\n"
+    log_info "Found $total deb packages. Starting conversion.\n"
 
     for ((i=0; i<total; i++)); do
         if convert_single_package "${files[$i]}" $((i+1)) "$total"; then
             ((success++))
         else
             ((fail++))
-            log_error "第 $((i+1)) 个包转换失败"
+            log_error "Package #$((i+1)) conversion failed"
         fi
         cleanup_cache "$(basename "${files[$i]}")"
         echo
     done
 
     echo -e "${MAIN_COLOR}=================================================${NC}"
-    (( fail == 0 )) && log_step "全部转换完成！" || log_warn "转换结束（有失败项）"
-    log_info "总数: $total   成功: $success   失败: $fail"
-    log_info "输出目录 → $(pwd)/$OUTPUT_DIR"
+    (( fail == 0 )) && log_step "All conversions completed successfully!" || log_warn "Conversion finished (with failures)"
+    log_info "Total: $total   Success: $success   Failed: $fail"
+    log_info "Output directory → $(pwd)/$OUTPUT_DIR"
     echo -e "${MAIN_COLOR}=================================================${NC}"
 
     (( fail > 0 )) && exit 1 || exit 0
 }
 
-trap 'echo -e "\n${RED}用户中断，正在清理临时文件...${NC}";
+trap 'echo -e "\n${RED}Interrupted by user. Cleaning up temporary files...${NC}";
       safe_run rm -f *.deb .PKGINFO .INSTALL .MTREE;
       safe_run rm -rf pkg/ src/;
       safe_run rm -f *.pkg.tar.* *.tar.* 2>/dev/null;
-      echo -e "${RED}已退出${NC}"; exit 130' INT TERM
+      echo -e "${RED}Exited${NC}"; exit 130' INT TERM
 
 main "$@"
