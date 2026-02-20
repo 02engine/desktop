@@ -4,52 +4,355 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-linux-noarch:
+  # debian 系
+  build-linux-debian-x64:
     runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
-    - name: Install strip-nondeterminism
-      run: sudo apt-get install strip-nondeterminism
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22
-    - name: Setup bun ⚙️
-      uses: oven-sh/setup-bun@v2
-    - name: Install dependencies
-      run: bun install --loglevel=info
-    - name: Fetch
-      run: bun run fetch
-    - name: Compile
-      run: bun run webpack:prod
-    - name: Package
-      run: |
-        node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64
-    - name: Print file tree
-      run: node scripts/print-file-tree.js dist
-    - name: Upload artifacts to GitHub Actions
-      uses: actions/upload-artifact@v4
-      with:
-        name: arch-conversion-artifacts
-        path: |
-          dist/*.deb
-          dist/*.tar.gz
-          dist/*.AppImage
-          convertarch.sh
-        retention-days: 1
-        
-  build-linux-includearch:
-    needs: build-linux-noarch
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --debian --x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-debian-x64
+          path: dist/*.deb
+
+  build-linux-debian-armv7l:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --debian --armv7l
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-debian-armv7l
+          path: dist/*.deb
+
+  build-linux-debian-arm64:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --debian --arm64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-debian-arm64
+          path: dist/*.deb
+
+
+  # tarball 系
+  build-linux-tarball-x64:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --tarball --x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tarball-x64
+          path: dist/*.tar.gz
+
+  build-linux-tarball-armv7l:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --tarball --armv7l
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tarball-armv7l
+          path: dist/*.tar.gz
+
+  build-linux-tarball-arm64:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --tarball --arm64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tarball-arm64
+          path: dist/*.tar.gz
+
+
+  # AppImage 系
+  build-linux-appimage-x64:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --appimage --x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage-x64
+          path: dist/*.AppImage
+
+  build-linux-appimage-armv7l:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --appimage --armv7l
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage-armv7l
+          path: dist/*.AppImage
+
+  build-linux-appimage-arm64:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --appimage --arm64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage-arm64
+          path: dist/*.AppImage
+
+  build-linux-pkg-tar-zst-x64:
+    needs: build-linux-debian-x64
     runs-on: ubuntu-latest
     container:
       image: archlinux:base-devel
       options: --privileged
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Prepare Arch environment
         run: |
           pacman -Syu --noconfirm
@@ -72,26 +375,26 @@ jobs:
           debtap -u
           debtap --version || true
 
-      - name: Download artifacts
+      - name: Download debian-x64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: arch-conversion-artifacts
-          path: /workspace
+          name: linux-debian-x64
+          path: /workspace/dist
 
       - name: Setup workspace
         run: |
           cd /workspace
-          ls -la
+          mkdir -p arch-packages
+          ls -la dist || true
+          
+          # 從 repo 取出轉換腳本
+          cp convertarch.sh ./convertarch.sh 2>/dev/null || { echo "convertarch.sh not found in repo"; exit 1; }
           chmod +x convertarch.sh
-          mkdir -p dist
-          find . -name "*.deb" -exec mv {} dist/ \; 2>/dev/null || true
           
-          if [ -f "convertarch.sh" ]; then
-            cp convertarch.sh convertarch.sh.backup
-            sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
-          fi
+          # 修正 debtap → sudo debtap（常見相容處理）
+          sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
           
-          find dist -name "*.deb" | sort
+          find dist -name "*.deb" | sort || true
 
       - name: Convert packages
         working-directory: /workspace
@@ -104,112 +407,293 @@ jobs:
         run: |
           find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || true
           ls -la arch-packages/ 2>/dev/null || true
-          pwd
-          ls -la
 
-      - name: Copy arch files
-        run: cp /workspace/arch-packages/*.pkg.tar.zst /workspace/dist/
+      - name: Copy arch files to dist
+        run: cp arch-packages/*.pkg.tar.zst dist/ 2>/dev/null || true
 
-      - name: Upload packages
+      - name: Upload Arch
         uses: actions/upload-artifact@v4
         with:
-          name: linux
+          name: linux-arch-x64
           path: |
             /workspace/dist/*.pkg.tar.zst
-            /workspace/dist/*.deb
-            /workspace/dist/*.tar.gz
-            /workspace/dist/*.AppImage
+
+  build-linux-pkg-tar-zst-arm64:
+    needs: build-linux-debian-arm64
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+      options: --privileged
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare Arch environment
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
+          useradd -m -s /bin/bash builduser
+          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
+          echo 'export TERM=xterm' >> /etc/bash.bashrc
+
+      - name: Install and update debtap
+        run: |
+          sudo -u builduser bash <<'EOF'
+          set -e
+          export TERM=xterm
+          cd /home/builduser
+          git clone https://aur.archlinux.org/debtap.git
+          cd debtap
+          makepkg -si --noconfirm
+          EOF
+          
+          debtap -u
+          debtap --version || true
+
+      - name: Download debian-arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-debian-arm64
+          path: /workspace/dist
+
+      - name: Setup workspace
+        run: |
+          cd /workspace
+          mkdir -p arch-packages
+          ls -la dist || true
+          
+          cp convertarch.sh ./convertarch.sh 2>/dev/null || { echo "convertarch.sh not found in repo"; exit 1; }
+          chmod +x convertarch.sh
+          
+          sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
+          
+          find dist -name "*.deb" | sort || true
+
+      - name: Convert packages
+        working-directory: /workspace
+        run: |
+          export TERM=xterm
+          ./convertarch.sh
+
+      - name: Verify packages
+        working-directory: /workspace
+        run: |
+          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || true
+          ls -la arch-packages/ 2>/dev/null || true
+
+      - name: Copy arch files to dist
+        run: cp arch-packages/*.pkg.tar.zst dist/ 2>/dev/null || true
+
+      - name: Upload Arch
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arch-arm64
+          path: |
+            /workspace/dist/*.pkg.tar.zst
+
+  build-linux-pkg-tar-zst-armv7l:
+    needs: build-linux-debian-armv7l
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+      options: --privileged
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare Arch environment
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
+          useradd -m -s /bin/bash builduser
+          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
+          echo 'export TERM=xterm' >> /etc/bash.bashrc
+
+      - name: Install and update debtap
+        run: |
+          sudo -u builduser bash <<'EOF'
+          set -e
+          export TERM=xterm
+          cd /home/builduser
+          git clone https://aur.archlinux.org/debtap.git
+          cd debtap
+          makepkg -si --noconfirm
+          EOF
+          
+          debtap -u
+          debtap --version || true
+
+      - name: Download debian-armv7l artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-debian-armv7l
+          path: /workspace/dist
+
+      - name: Setup workspace
+        run: |
+          cd /workspace
+          mkdir -p arch-packages
+          ls -la dist || true
+          
+          cp convertarch.sh ./convertarch.sh 2>/dev/null || { echo "convertarch.sh not found in repo"; exit 1; }
+          chmod +x convertarch.sh
+          
+          sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
+          
+          find dist -name "*.deb" | sort || true
+
+      - name: Convert packages
+        working-directory: /workspace
+        run: |
+          export TERM=xterm
+          ./convertarch.sh
+
+      - name: Verify packages
+        working-directory: /workspace
+        run: |
+          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || true
+          ls -la arch-packages/ 2>/dev/null || true
+
+      - name: Copy arch files to dist
+        run: cp arch-packages/*.pkg.tar.zst dist/ 2>/dev/null || true
+
+      - name: Upload Arch
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arch-armv7l
+          path: |
+            /workspace/dist/*.pkg.tar.zst
 
 
   build-mac:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: modern
+            args: '--mac --universal'
+          - target: legacy-10.13-10.14
+            args: '--mac-legacy-10.13-10.14 --x64'
+          - target: legacy-10.15
+            args: '--mac-legacy-10.15 --x64'
+          - target: legacy-11
+            args: '--mac-legacy-11 --universal'
     steps:
     - name: Checkout
       uses: actions/checkout@v4
       with:
         submodules: recursive
         persist-credentials: false
+
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 22
-    - name: Setup bun ⚙️
+        node-version: 24
+
+    - name: Setup bun
       uses: oven-sh/setup-bun@v2
+
     - name: Install dependencies
       run: bun install --loglevel=info
+
     - name: Fetch
       run: bun run fetch
+
     - name: Compile
       run: bun run webpack:prod
+
     - name: Package
       run: |
-        node release-automation/build.js --mac --universal
-        node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
-    - name: Print file tree
-      run: node scripts/print-file-tree.js dist
-    - name: Upload artifacts to GitHub Actions
+        node release-automation/build.js ${{ matrix.args }}
+
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: mac
+        name: mac-${{ matrix.target }}
         path: dist/*.dmg
 
-
   build-windows:
-    # GitHub's Windows runners have a C: drive and a D: drive.
-    # C: is for the OS and has good read performance but awful write performance.
-    # D: has much better faster write performance (>20x faster than C:)
-    # We want to use the D: drive whenever we can. Trying to do "npm ci" on the C:
-    # drive has been observed to take over an hour!
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: modern-nsis-x64
+            args: '--windows --x64'
+            files: '*.exe'
+          - target: modern-nsis-ia32
+            args: '--windows --ia32'
+            files: '*.exe'
+          - target: modern-nsis-arm64
+            args: '--windows --arm64'
+            files: '*.exe'
+          - target: modern-appx-x64
+            args: '--microsoft-store --x64'
+            files: '*.appx'
+          - target: modern-appx-ia32
+            args: '--microsoft-store --ia32'
+            files: '*.appx'
+          - target: modern-appx-arm64
+            args: '--microsoft-store --arm64'
+            files: '*.appx'
+          - target: portable
+            args: '--windows-portable --x64'
+            files: '*.exe'
+          - target: legacy-x64
+            args: '--windows-legacy --x64'
+            files: '*.exe'
+          - target: legacy-ia32
+            args: '--windows-legacy --ia32'
+            files: '*.exe'
     steps:
-    # actions/checkout can only clone to paths in $GITHUB_WORKSPACE which is on the C: drive,
-    # so we have to clone to C: then copy to D: after. This repository itself isn't huge so
-    # this is plenty fast.
     - name: Checkout
       uses: actions/checkout@v4
       with:
         submodules: recursive
         persist-credentials: false
         path: repo
-    - name: "Move repository to D: drive"
+
+    - name: Move to D drive
+      shell: pwsh
       run: |
         Copy-Item -Path repo -Destination D:\repo -Recurse
         Remove-Item -Path repo -Recurse -Force
+
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 22
-    - name: Setup bun ⚙️
+        node-version: 24
+
+    - name: Setup bun
       uses: oven-sh/setup-bun@v2
-    # The repository being on D: means that node_modules IO will be fast, but npm still downloads
-    # packages to a temporary folder for caching which is on C: by default. We need to make sure
-    # npm uses the D: drive instead otherwise we still get bottlenecked by C:.
+
     - name: "Configure Bun cache and prefix to D: drive"
       run: |
         echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
         echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
+
     - name: Install dependencies
       working-directory: D:\repo
       run: bun install --loglevel=info
+
     - name: Fetch
       working-directory: D:\repo
       run: bun run fetch
+
     - name: Compile
       working-directory: D:\repo
       run: bun run webpack:prod
+
     - name: Package
       working-directory: D:\repo
       run: |
-        node release-automation/build.js --windows --microsoft-store --x64 --ia32 --arm64
-        node release-automation/build.js --windows-portable --x64
-        node release-automation/build.js --windows-legacy --ia32 --x64
-    - name: Print file tree
-      working-directory: D:\repo
-      run: node scripts/print-file-tree.js dist
-    - name: Upload artifacts to GitHub Actions
+        node release-automation/build.js ${{ matrix.args }}
+
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: windows
-        path: |
-          D:\repo\dist\*.exe
-          D:\repo\dist\*.appx
+        name: windows-${{ matrix.target }}
+        path: D:\repo\dist\${{ matrix.files }}
