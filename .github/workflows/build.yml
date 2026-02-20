@@ -28,6 +28,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -65,6 +67,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -102,6 +106,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -141,6 +147,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -178,6 +186,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -215,6 +225,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -254,6 +266,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -291,6 +305,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -328,6 +344,8 @@ jobs:
         run: bun install --loglevel=info
 
       - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
       - name: Compile
@@ -600,6 +618,8 @@ jobs:
       run: bun install --loglevel=info
 
     - name: Fetch
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: bun run fetch
 
     - name: Compile
@@ -681,6 +701,8 @@ jobs:
 
     - name: Fetch
       working-directory: D:\repo
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: bun run fetch
 
     - name: Compile
