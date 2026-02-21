@@ -28,7 +28,7 @@ class UpdateWindow extends AbstractWindow {
 this.ipc.handle('download', () => {
       this.window.destroy();
 
-      openExternal(`https://download.02engine.02studio.xyz/${latestVersion}/`);
+      openExternal(`https://download.02engine.org/${latestVersion}/`);
     });
 
     const ignore = (permanently) => {

@@ -153,7 +153,7 @@ class Logger {
     
     this.info('DEPENDENCIES', '=== External Resources ===');
     this.info('DEPENDENCIES', `Update Check URL: https://editor.02engine.org/versions.json`);
-    this.info('DEPENDENCIES', `Download Site: https://download.02engine.02studio.xyz`);
+    this.info('DEPENDENCIES', `Download Site: https://download.02engine.org`);
     this.info('DEPENDENCIES', `TurboWarp Extensions: @turbowarp/extensions`);
     this.info('DEPENDENCIES', `Scratch GUI Fork: github:02engine/scratch-gui#main`);
   }

@@ -337,7 +337,7 @@
   },
   "downgrade-warning.message": {
     "string": "You are using an older version of {APP_NAME} after using a later version. Please exit and download the latest version from {website}.\n\nIf you continue, it is VERY LIKELY that you will PERMANENTLY lose all of your settings and backpack. We WILL NOT be able to recover your data.\n\n(Debug info: {debugInfo})",
-    "developer_comment": "Appears when someone installs the latest version of the dekstop app, runs it, then installs and runs an older version. {APP_NAME} becomes '02Engine Desktop'. {website} becomes a URL like '02engine.02studio.xyz'. {debugInfo} becomes some internal stuff that shouldn't matter. This is supposed to be a very scary warning."
+    "developer_comment": "Appears when someone installs the latest version of the dekstop app, runs it, then installs and runs an older version. {APP_NAME} becomes '02Engine Desktop'. {website} becomes a URL like '02engine.org'. {debugInfo} becomes some internal stuff that shouldn't matter. This is supposed to be a very scary warning."
   },
   "downgrade-warning.exit": {
     "string": "Exit and Update",

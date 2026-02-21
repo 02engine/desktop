@@ -2,7 +2,7 @@
 
 02Engine as a desktop app.Based on Turbowarp.
 
-If you're looking for downloads, head to: https://02engine.02studio.xyz/
+If you're looking for downloads, head to: https://02engine.org/
 
 Licensed under the GPLv3.0. See LICENSE for more information.
 

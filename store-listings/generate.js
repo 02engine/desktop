@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const NUMBER_OF_ADDONS = 50;
-const CHANGELOG_LINK = 'https://02engine.02studio.xyz/';
+const CHANGELOG_LINK = 'https://02engine.org/';
 const SCREENSHOT_PROJECT_LINK = 'https://scratch.mit.edu/projects/425020125/';
 const translations = require('./imported.json');
 

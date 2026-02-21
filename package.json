@@ -49,7 +49,7 @@
       "terser-webpack-plugin": "^4.2.3"
     }
   },
-  "homepage": "https://02engine.02studio.xyz/",
+  "homepage": "https://02engine.org/",
   "repository": {
     "type": "git",
     "url": "https://github.com/02engine/desktop.git"
@@ -61,7 +61,7 @@
   "main": "./src-main/entrypoint.js",
   "tw_update": true,
   "build": {
-    "appId": "02Studio.02Engine.desktop",
+    "appId": "ZPTStudio.02Engine.desktop",
     "productName": "02Engine",
     "files": [
       "node_modules/**/*",
@@ -70,7 +70,14 @@
       "src-renderer/**/*",
       "dist-renderer-webpack/**/*",
       "dist-library-files/**/*",
-      "dist-extensions/**/*"
+      "dist-extensions/**/*",
+      "!**/*.tsbuildinfo",
+      "!**/*.map",
+      "!**/*.spec.*",
+      "!**/__tests__/**/*",
+      "!**/node_modules/.bin/**",
+      "!**/node_modules/**/*.md",
+      "!**/node_modules/**/*.txt"
     ],
     "extraResources": [
       {
@@ -137,7 +144,7 @@
     "linux": {
       "artifactName": "${productName}-${os}-${arch}-${version}.${ext}",
       "icon": "./build/",
-      "synopsis": "Mod of Scratch with a compiler and more features.",
+      "synopsis": "Redefine the designing experience",
       "description": "02Engine.Better Scratch.Made from Turbowarp.",
       "category": "Development",
       "desktop": {
@@ -162,7 +169,7 @@
       ]
     },
     "snap": {
-      "summary": "02Engine.Better Scratch.Made from Turbowarp.",
+      "summary": "Redefine the designing experience",
       "allowNativeWayland": true,
       "plugs": [
         "default",
@@ -173,7 +180,7 @@
       ]
     },
     "appImage": {
-      "license": null
+      "license": "LICENSE"
     },
     "fileAssociations": [
       {
