@@ -10,6 +10,6 @@ jobs:
     steps:
       - uses: vedantmgoyal9/winget-releaser@19e706d4c9121098010096f9c495a70a7518b30f
         with:
-          identifier: GarboMuffin.TurboWarp
-          installers-regex: 'TurboWarp-Setup-[\d.]+-\w+\.exe$'
+          identifier: 0.2Studio.02Engine
+          installers-regex: '02Engine(-Legacy)?-Setup-[\d.]+(-[a-zA-Z0-9]+)?\.exe$'
           token: ${{ secrets.WINGET_TOKEN }}
