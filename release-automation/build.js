@@ -1,48 +1,41 @@
 require('./patch-electron-builder');
-
 const fs = require('fs');
 const pathUtil = require('path');
 const childProcess = require('child_process');
 const builder = require('electron-builder');
 const electronFuses = require('@electron/fuses');
-
 const {Platform, Arch} = builder;
 
 const isProduction = process.argv.includes('--production');
 
-// Electron 22 is the last version to support Windows 7, 8, 8.1
+// Electron 22 是最後支援 Windows 7/8/8.1 的版本
 const ELECTRON_22_FINAL = '22.3.27';
-
-// Electron 26 is the last version to support macOS 10.13, 10.14
+// Electron 26 是最後支援 macOS 10.13、10.14 的版本
 const ELECTRON_26_FINAL = '26.6.10';
-
-// Electron 32 is the last version to support macOS 10.15
+// Electron 32 是最後支援 macOS 10.15 的版本
 const ELECTRON_32_FINAL = '32.3.3';
+// Electron 37 是目前最後支援 macOS 11 的版本（仍可能繼續更新）
+const ELECTRON_37_FINAL = '37.8.0';
 
 /**
  * @returns {Date}
  */
 const getSourceDateEpoch = () => {
-  // Used if a better date cannot be obtained for any reason.
-  // This is from commit 35045e7c0fa4e4e14b2747e967adb4029cedb945.
+  // 備用日期，來自 commit 35045e7c0fa4e4e14b2747e967adb4029cedb945
   const ARBITRARY_FALLBACK = 1609809111000;
 
-  // If SOURCE_DATE_EPOCH is set externally, use it.
   if (process.env.SOURCE_DATE_EPOCH) {
     return new Date((+process.env.SOURCE_DATE_EPOCH) * 1000);
   }
 
-  // Otherwise, try to get the time of the most recent commit.
   const gitProcess = childProcess.spawnSync('git', ['log', '-1', '--pretty=%ct']);
-
   if (gitProcess.error) {
-    if (gitProcess.error === 'ENOENT') {
+    if (gitProcess.error.code === 'ENOENT') {
       console.warn('Could not get source date epoch: git is not installed');
       return new Date(ARBITRARY_FALLBACK);
     }
     throw gitProcess.error;
   }
-
   if (gitProcess.status !== 0) {
     console.warn(`Could not get source date epoch: git returned status ${gitProcess.status}`);
     return new Date(ARBITRARY_FALLBACK);
@@ -58,16 +51,9 @@ const getSourceDateEpoch = () => {
 };
 
 const sourceDateEpoch = getSourceDateEpoch();
-// Ensure that we have a SOURCE_DATE_EPOCH environment variable so that it is available
-// to child processes of electron-builder. This is necessary for making the Debian
-// packages producibile.
 process.env.SOURCE_DATE_EPOCH = Math.round(sourceDateEpoch.getTime() / 1000).toString();
 console.log(`Source date epoch: ${sourceDateEpoch.toISOString()} (${process.env.SOURCE_DATE_EPOCH})`);
 
-/**
- * @param {string} platformName
- * @returns {string} a string that indexes into Arch[...]
- */
 const getDefaultArch = (platformName) => {
   if (platformName === 'WINDOWS') return 'x64';
   if (platformName === 'MAC') return 'universal';
@@ -75,10 +61,6 @@ const getDefaultArch = (platformName) => {
   throw new Error(`Unknown platform: ${platformName}`);
 };
 
-/**
- * @param {string} platformName
- * @returns {string[]} a string that indexes into Arch[...] or null if the default should be used
- */
 const getArchesToBuild = (platformName) => {
   const arches = [];
   for (const arg of process.argv) {
@@ -96,43 +78,28 @@ const getArchesToBuild = (platformName) => {
 
 const flipFuses = async (context) => {
   const electronMajorVersion = +context.packager.info.framework.version.split('.')[0];
-
   /** @type {import('@electron/fuses').FuseV1Config} */
   const newFuses = {
     version: electronFuses.FuseVersion.V1,
     strictlyRequireAllFuses: true,
   };
 
-  // We don't use this option, but we have to set it explicitly due to strictlyRequireAllFuses.
   newFuses[electronFuses.FuseV1Options.LoadBrowserProcessSpecificV8Snapshot] = false;
-
-  // Disable various Node.js features that we do not use
   newFuses[electronFuses.FuseV1Options.RunAsNode] = false;
   newFuses[electronFuses.FuseV1Options.EnableNodeOptionsEnvironmentVariable] = false;
   newFuses[electronFuses.FuseV1Options.EnableNodeCliInspectArguments] = false;
-
-  // Prevent the app from being tricked into accessing files outside of the ASAR
   newFuses[electronFuses.FuseV1Options.OnlyLoadAppFromAsar] = false;
-
-  // We should consider this option after analyzing performance.
   newFuses[electronFuses.FuseV1Options.EnableEmbeddedAsarIntegrityValidation] = false;
-
-  // We should consider this option after analyzing performance and ensuring that data can't be
-  // accidentally lost very easily.
   newFuses[electronFuses.FuseV1Options.EnableCookieEncryption] = false;
 
   if (electronMajorVersion >= 29) {
-    // We should try to disable this in the future but currently it breaks migrate.html.
+    // 目前仍需開啟，否則 migrate.html 會出問題，未來可嘗試關閉
     newFuses[electronFuses.FuseV1Options.GrantFileProtocolExtraPrivileges] = true;
   }
 
   await context.packager.addElectronFuses(context, newFuses);
 };
 
-/**
- * @param {string} directory
- * @param {Date} date
- */
 const recursivelySetFileTimes = (directory, date) => {
   const files = fs.readdirSync(directory);
   for (const file of files) {
@@ -149,21 +116,24 @@ const recursivelySetFileTimes = (directory, date) => {
 
 const afterPack = async (context) => {
   await flipFuses(context);
+  recursivelySetFileTimes(context.appOutDir, sourceDateEpoch);
+};
 
-  // When electron-builder packs the folder, modification times of the files are
-  // preserved for some formats, so ensure that modification times are reproducible.
+const afterPackForUniversalMac = async (context) => {
+  // universal 模式只在最終合併階段套用 fuses
+  if (context.arch === Arch.universal) {
+    await flipFuses(context);
+  }
   recursivelySetFileTimes(context.appOutDir, sourceDateEpoch);
 };
 
 const afterSign = async (context) => {
-  // Ensure that modification times are still reproducible after signing and resource
-  // editing.
   recursivelySetFileTimes(context.appOutDir, sourceDateEpoch);
 };
 
 const build = async ({
-  platformName, // String that indexes into Platform[...]
-  platformType, // Passed as first argument into platform.createTarget(...)
+  platformName,
+  platformType,
   manageUpdates = false,
   legacy = false,
   extraConfig = {},
@@ -190,14 +160,13 @@ const build = async ({
     }
     console.log(`Building distribution: ${distributionName}`);
 
-    // electron-builder will automatically merge this with the settings in package.json
     const config = {
       extraMetadata: {
         tw_dist: distributionName,
         tw_warn_legacy: isProduction,
         tw_update: isProduction && manageUpdates
       },
-      afterPack,
+      afterPack: arch === Arch.universal ? afterPackForUniversalMac : afterPack,
       afterSign,
       ...extraConfig,
       ...await prepare(archName)
@@ -206,8 +175,6 @@ const build = async ({
     return builder.build({
       targets: target,
       config,
-      // prevent electron-builder from trying to guess where to publish to since
-      // we upload them ourselves from the release workflow
       publish: null
     });
   };
@@ -257,16 +224,7 @@ const buildMicrosoftStore = () => build({
 const buildMac = () => build({
   platformName: 'MAC',
   platformType: 'dmg',
-  manageUpdates: true,
-  extraConfig: {
-    afterPack: async (context) => {
-      // For non-legacy macOS we should only need to apply fuses on the universal build at the end
-      // https://github.com/electron-userland/electron-builder/issues/6365#issuecomment-1191747089
-      if (context.arch === Arch.universal) {
-        await afterPack(context);
-      }
-    }
-  }
+  manageUpdates: true
 });
 
 const buildMacLegacy10131014 = () => build({
@@ -295,6 +253,19 @@ const buildMacLegacy1015 = () => build({
   }
 });
 
+const buildMacLegacy11 = () => build({
+  platformName: 'MAC',
+  platformType: 'dmg',
+  manageUpdates: true,
+  legacy: true,
+  extraConfig: {
+    mac: {
+      artifactName: '${productName}-Legacy-11-Setup-${version}.${ext}'
+    },
+    electronVersion: ELECTRON_37_FINAL
+  }
+});
+
 const buildMacDir = () => build({
   platformName: 'MAC',
   platformType: 'dir',
@@ -312,14 +283,12 @@ const buildTarball = () => build({
   platformType: 'tar.gz',
   manageUpdates: true,
   extraConfig: {
-    // gzip header contains various non-deterministic fields that we would like to remove.
-    // TODO: would be nice to reimplement this small part of strip-nondeterminism in JS to remove dependency.
     artifactBuildCompleted: async (artifact) => new Promise((resolve, reject) => {
-      console.log(`Running strip-nondeterminism on ${artifact.file}`)
+      console.log(`Running strip-nondeterminism on ${artifact.file}`);
       const stripNondeterminism = childProcess.spawn('strip-nondeterminism', [artifact.file]);
       stripNondeterminism.on('error', (e) => {
         if (e.code === 'ENOENT') {
-          console.error('strip-nondeterminism is not installed; tarball may not be reproducible.')
+          console.error('strip-nondeterminism is not installed; tarball may not be reproducible.');
           resolve();
         } else {
           reject(e);
@@ -358,6 +327,7 @@ const run = async () => {
     '--mac': buildMac,
     '--mac-legacy-10.13-10.14': buildMacLegacy10131014,
     '--mac-legacy-10.15': buildMacLegacy1015,
+    '--mac-legacy-11': buildMacLegacy11,
     '--mac-dir': buildMacDir,
     '--debian': buildDebian,
     '--tarball': buildTarball,
@@ -380,9 +350,7 @@ const run = async () => {
 };
 
 run()
-  .then(() => {
-    process.exit(0);
-  })
+  .then(() => process.exit(0))
   .catch((error) => {
     console.error(error);
     process.exit(1);
