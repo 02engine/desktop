@@ -105,7 +105,7 @@
     },
     "appx": {
       "artifactName": "ZPTStudio-${productName}-MS-Store-${version}-${arch}.${ext}",
-      "applicationId": "ZPTStudio.02Engine.desktop",
+      "applicationId": "ZPTStudio.bin-02Engine.desktop",
       "displayName": "02Engine",
       "identityName": "0.2Studio.02engine",
       "publisher": "CN=EEA7DB4E-6631-438E-8AD4-7EE3CBC5A4C9",

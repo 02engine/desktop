@@ -4,6 +4,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  prepare-for-arch:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: convert-script
+          path: scripts/convertarch.sh
+
   # debian 系
   build-linux-debian-x64:
     runs-on: ubuntu-latest
@@ -121,7 +138,6 @@ jobs:
         with:
           name: linux-debian-arm64
           path: dist/*.deb
-
 
   # tarball 系
   build-linux-tarball-x64:
@@ -241,7 +257,6 @@ jobs:
           name: linux-tarball-arm64
           path: dist/*.tar.gz
 
-
   # AppImage 系
   build-linux-appimage-x64:
     runs-on: ubuntu-latest
@@ -360,6 +375,8 @@ jobs:
           name: linux-appimage-arm64
           path: dist/*.AppImage
 
+  # ── Arch Linux (使用 debtap 转换 deb → pkg.tar.zst) ──
+
   build-linux-pkg-tar-zst-x64:
     needs: build-linux-debian-x64
     runs-on: ubuntu-latest
@@ -399,17 +416,25 @@ jobs:
           name: linux-debian-x64
           path: /workspace/dist
 
+      - name: Download convert script artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: convert-script
+          path: /workspace/
+
       - name: Setup workspace
         run: |
           cd /workspace
           mkdir -p arch-packages
           ls -la dist || true
-          
-          # 從 repo 取出轉換腳本
-          cp convertarch.sh ./convertarch.sh 2>/dev/null || { echo "convertarch.sh not found in repo"; exit 1; }
+
+          if [ ! -f convertarch.sh ]; then
+            echo "Error: convertarch.sh not found after downloading artifact"
+            ls -la .
+            exit 1
+          fi
+
           chmod +x convertarch.sh
-          
-          # 修正 debtap → sudo debtap（常見相容處理）
           sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
           
           find dist -name "*.deb" | sort || true
@@ -475,15 +500,25 @@ jobs:
           name: linux-debian-arm64
           path: /workspace/dist
 
+      - name: Download convert script artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: convert-script
+          path: /workspace/
+
       - name: Setup workspace
         run: |
           cd /workspace
           mkdir -p arch-packages
           ls -la dist || true
-          
-          cp convertarch.sh ./convertarch.sh 2>/dev/null || { echo "convertarch.sh not found in repo"; exit 1; }
+
+          if [ ! -f convertarch.sh ]; then
+            echo "Error: convertarch.sh not found after downloading artifact"
+            ls -la .
+            exit 1
+          fi
+
           chmod +x convertarch.sh
-          
           sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
           
           find dist -name "*.deb" | sort || true
@@ -549,15 +584,25 @@ jobs:
           name: linux-debian-armv7l
           path: /workspace/dist
 
+      - name: Download convert script artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: convert-script
+          path: /workspace/
+
       - name: Setup workspace
         run: |
           cd /workspace
           mkdir -p arch-packages
           ls -la dist || true
-          
-          cp convertarch.sh ./convertarch.sh 2>/dev/null || { echo "convertarch.sh not found in repo"; exit 1; }
+
+          if [ ! -f convertarch.sh ]; then
+            echo "Error: convertarch.sh not found after downloading artifact"
+            ls -la .
+            exit 1
+          fi
+
           chmod +x convertarch.sh
-          
           sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
           
           find dist -name "*.deb" | sort || true
@@ -584,7 +629,7 @@ jobs:
           path: |
             /workspace/dist/*.pkg.tar.zst
 
-
+  # macOS 构建（保持不变）
   build-mac:
     runs-on: macos-latest
     strategy:
@@ -600,41 +645,42 @@ jobs:
           - target: legacy-11
             args: '--mac-legacy-11 --universal'
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
 
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 24
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
-    - name: Setup bun
-      uses: oven-sh/setup-bun@v2
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
 
-    - name: Install dependencies
-      run: bun install --loglevel=info
+      - name: Install dependencies
+        run: bun install --loglevel=info
 
-    - name: Fetch
-      env:
+      - name: Fetch
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: bun run fetch
+        run: bun run fetch
 
-    - name: Compile
-      run: bun run webpack:prod
+      - name: Compile
+        run: bun run webpack:prod
 
-    - name: Package
-      run: |
-        node release-automation/build.js ${{ matrix.args }}
+      - name: Package
+        run: |
+          node release-automation/build.js ${{ matrix.args }}
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: mac-${{ matrix.target }}
-        path: dist/*.dmg
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-${{ matrix.target }}
+          path: dist/*.dmg
 
+  # Windows 构建（保持不变）
   build-windows:
     runs-on: windows-latest
     strategy:
@@ -669,53 +715,53 @@ jobs:
             args: '--windows-legacy --ia32'
             files: '*.exe'
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
-        path: repo
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+          path: repo
 
-    - name: Move to D drive
-      shell: pwsh
-      run: |
-        Copy-Item -Path repo -Destination D:\repo -Recurse
-        Remove-Item -Path repo -Recurse -Force
+      - name: Move to D drive
+        shell: pwsh
+        run: |
+          Copy-Item -Path repo -Destination D:\repo -Recurse
+          Remove-Item -Path repo -Recurse -Force
 
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 24
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
-    - name: Setup bun
-      uses: oven-sh/setup-bun@v2
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
 
-    - name: "Configure Bun cache and prefix to D: drive"
-      run: |
-        echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
-        echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
+      - name: "Configure Bun cache and prefix to D: drive"
+        run: |
+          echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
+          echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
 
-    - name: Install dependencies
-      working-directory: D:\repo
-      run: bun install --loglevel=info
+      - name: Install dependencies
+        working-directory: D:\repo
+        run: bun install --loglevel=info
 
-    - name: Fetch
-      working-directory: D:\repo
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: bun run fetch
+      - name: Fetch
+        working-directory: D:\repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run fetch
 
-    - name: Compile
-      working-directory: D:\repo
-      run: bun run webpack:prod
+      - name: Compile
+        working-directory: D:\repo
+        run: bun run webpack:prod
 
-    - name: Package
-      working-directory: D:\repo
-      run: |
-        node release-automation/build.js ${{ matrix.args }}
+      - name: Package
+        working-directory: D:\repo
+        run: |
+          node release-automation/build.js ${{ matrix.args }}
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-${{ matrix.target }}
-        path: D:\repo\dist\${{ matrix.files }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.target }}
+          path: D:\repo\dist\${{ matrix.files }}
