@@ -414,7 +414,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-debian-x64
-          path: /workspace/dist
+          path: /workspace/arch-packages
 
       - name: Download convert script artifact
         uses: actions/download-artifact@v4
@@ -454,20 +454,12 @@ jobs:
       - name: Copy arch files to dist
         run: cp arch-packages/*.pkg.tar.zst dist/ 2>/dev/null || true
 
-      - name: Final check before upload
-        working-directory: /workspace
-        run: |
-          echo "Final files in dist/ ready for upload:"
-          ls -la dist/*.pkg.tar.zst || echo "No files to upload!"
-          ls -la dist/
-          ls -la arch-packages/
-
       - name: Upload Arch
         uses: actions/upload-artifact@v4
         with:
           name: linux-arch-x64
           path: |
-            /workspace/dist/*.pkg.tar.zst
+            /workspace/arch-packages/*.pkg.tar.zst
 
   build-linux-pkg-tar-zst-arm64:
     needs: build-linux-debian-arm64
@@ -506,7 +498,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-debian-arm64
-          path: /workspace/dist
+          path: /workspace/arch-packages
 
       - name: Download convert script artifact
         uses: actions/download-artifact@v4
@@ -551,7 +543,7 @@ jobs:
         with:
           name: linux-arch-arm64
           path: |
-            /workspace/dist/*.pkg.tar.zst
+            /workspace/arch-packages/*.pkg.tar.zst
 
   build-linux-pkg-tar-zst-armv7l:
     needs: build-linux-debian-armv7l
@@ -590,7 +582,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-debian-armv7l
-          path: /workspace/dist
+          path: /workspace/arch-packages
 
       - name: Download convert script artifact
         uses: actions/download-artifact@v4
@@ -635,7 +627,7 @@ jobs:
         with:
           name: linux-arch-armv7l
           path: |
-            /workspace/dist/*.pkg.tar.zst
+            /workspace/arch-packages/*.pkg.tar.zst
 
   # macOS 构建（保持不变）
   build-mac:
