@@ -93,7 +93,6 @@ const flipFuses = async (context) => {
   newFuses[electronFuses.FuseV1Options.EnableCookieEncryption] = false;
 
   if (electronMajorVersion >= 29) {
-    // 目前仍需開啟，否則 migrate.html 會出問題，未來可嘗試關閉
     newFuses[electronFuses.FuseV1Options.GrantFileProtocolExtraPrivileges] = true;
   }
 
@@ -120,7 +119,6 @@ const afterPack = async (context) => {
 };
 
 const afterPackForUniversalMac = async (context) => {
-  // universal 模式只在最終合併階段套用 fuses
   if (context.arch === Arch.universal) {
     await flipFuses(context);
   }
@@ -179,7 +177,8 @@ const build = async ({
     });
   };
 
-  for (const archName of getArchesToBuild(platformName)) {
+  const arches = getArchesToBuild(platformName);
+  for (const archName of arches) {
     await buildForArch(archName);
   }
 };
@@ -317,6 +316,25 @@ const buildLinuxDir = () => build({
   manageUpdates: true
 });
 
+// ── 新增 snap 支持 ────────────────────────────────────────────────
+const buildSnap = () => {
+  console.log("Snap 构建提示：snapcraft 必须在 Linux 环境下运行");
+  console.log("非 x64 架构（如 arm64）可能需要 destructive mode (SNAPCRAFT_BUILD_ENVIRONMENT=host)");
+
+  return build({
+    platformName: 'LINUX',
+    platformType: 'snap',
+    manageUpdates: true
+    // 如果需要额外 snap 配置，可以在这里覆盖 package.json 的 snap 字段
+    // extraConfig: {
+    //   snap: {
+    //     base: 'core24',
+    //     grade: 'stable'
+    //   }
+    // }
+  });
+};
+
 const run = async () => {
   const options = {
     '--windows': buildWindows,
@@ -332,7 +350,8 @@ const run = async () => {
     '--debian': buildDebian,
     '--tarball': buildTarball,
     '--appimage': buildAppImage,
-    '--linux-dir': buildLinuxDir
+    '--linux-dir': buildLinuxDir,
+    '--snap': buildSnap               // ← 新增 snap 命令行支持
   };
 
   let built = 0;

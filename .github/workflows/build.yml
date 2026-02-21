@@ -375,8 +375,136 @@ jobs:
           name: linux-appimage-arm64
           path: dist/*.AppImage
 
-  # ── Arch Linux (使用 debtap 转换 deb → pkg.tar.zst) ──
+  # ── Snap 系 ───────────────────────────────────────────────────────
+  build-linux-snap-x64:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install snapcraft
+        run: sudo snap install snapcraft --classic
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --snap --x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-snap-x64
+          path: dist/*.snap
+
+  build-linux-snap-armv7l:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      SNAPCRAFT_BUILD_ENVIRONMENT: host
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install snapcraft
+        run: sudo snap install snapcraft --classic
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --snap --armv7l
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-snap-armv7l
+          path: dist/*.snap
+
+  build-linux-snap-arm64:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      SNAPCRAFT_BUILD_ENVIRONMENT: host
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install snapcraft
+        run: sudo snap install snapcraft --classic
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: node release-automation/build.js --snap --arm64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-snap-arm64
+          path: dist/*.snap
+
+  # ── Arch Linux (使用 debtap 转换 deb → pkg.tar.zst) ──
   build-linux-pkg-tar-zst-x64:
     needs: build-linux-debian-x64
     runs-on: ubuntu-latest
