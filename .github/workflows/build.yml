@@ -459,7 +459,8 @@ jobs:
         run: |
           echo "Final files in dist/ ready for upload:"
           ls -la dist/*.pkg.tar.zst || echo "No files to upload!"
-          ls -la
+          ls -la dist/
+          ls -la arch-packages/
 
       - name: Upload Arch
         uses: actions/upload-artifact@v4
