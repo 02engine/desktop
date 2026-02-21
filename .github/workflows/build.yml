@@ -454,6 +454,13 @@ jobs:
       - name: Copy arch files to dist
         run: cp arch-packages/*.pkg.tar.zst dist/ 2>/dev/null || true
 
+      - name: Final check before upload
+        working-directory: /workspace
+        run: |
+          echo "Final files in dist/ ready for upload:"
+          ls -la dist/*.pkg.tar.zst || echo "No files to upload!"
+          ls -la
+
       - name: Upload Arch
         uses: actions/upload-artifact@v4
         with:
