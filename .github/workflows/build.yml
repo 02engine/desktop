@@ -418,6 +418,14 @@ jobs:
           name: linux-snap-x64
           path: dist/*.snap
 
+      - name: Publish x64 snap to Snap Store
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
+        with:
+          snap: dist/*.snap
+          release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
+
   build-linux-snap-armv7l:
     runs-on: ubuntu-latest
     env:
@@ -460,6 +468,14 @@ jobs:
         with:
           name: linux-snap-armv7l
           path: dist/*.snap
+
+      - name: Publish armv7l snap to Snap Store
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
+        with:
+          snap: dist/*.snap
+          release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
 
   build-linux-snap-arm64:
     runs-on: ubuntu-latest          # x86 runner
@@ -515,6 +531,14 @@ jobs:
         with:
           name: linux-snap-arm64
           path: dist/*.snap || ./*.snap
+
+      - name: Publish arm64 snap to Snap Store
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
+        with:
+          snap: dist/*.snap || ./*.snap
+          release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
 
   # ── Arch Linux (使用 debtap 转换 deb → pkg.tar.zst) ──
   build-linux-pkg-tar-zst-x64:
