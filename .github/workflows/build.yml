@@ -462,7 +462,7 @@ jobs:
           path: dist/*.snap
 
   build-linux-snap-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-arm
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       SNAPCRAFT_BUILD_ENVIRONMENT: host
