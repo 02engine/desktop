@@ -1,0 +1,143 @@
+id: io.github._02engine._02Engine
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node20
+command: 02engine
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --socket=alsa
+  - --device=dri
+  - --filesystem=home:ro
+  - --filesystem=xdg-download
+  - --filesystem=xdg-documents:ro
+  - --filesystem=xdg-pictures:ro
+  - --filesystem=xdg-music:ro
+  - --filesystem=xdg-videos:ro
+  - --share=network
+
+modules:
+  # Node.js 20 from the SDK extension
+  - name: nodejs
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/node20
+    build-commands:
+      - echo "Node.js provided by SDK extension"
+
+  # 02Engine Application
+  - name: 02Engine
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/node20/bin
+      env:
+        npm_config_nodedir: /usr/lib/sdk/node20
+    sources:
+      - type: git
+        url: https://github.com/02engine/desktop.git
+        tag: v1.2.2
+        commit: 300ab696277302654edb82840ac1e6a146d1b4ec
+      - type: file
+        url: https://raw.githubusercontent.com/02engine/desktop/main/art/icon.png
+        dest-filename: icon.png
+      - type: file
+        path: linux-files/org.turbowarp.TurboWarp.metainfo.xml
+        dest-filename: metainfo.xml.template
+
+    build-commands:
+      # Install dependencies using npm (bun may not be available in flatpak)
+      - npm install --legacy-peer-deps
+
+      # Download required resources
+      - npm run fetch
+
+      # Build the webpack bundles
+      - npm run webpack:prod
+
+      # Build the Electron app for Linux (unpacked directory mode)
+      - node release-automation/build.js --linux-dir --x64
+
+      # Create installation directories
+      - install -Dm755 dist/linux-unpacked/02Engine /app/bin/02engine
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
+      - install -Dm644 dist-renderer-webpack/editor/gui/gui.html /app/share/doc/02engine/gui.html
+
+      # Create desktop file
+      - |
+        cat > /app/share/applications/io.github._02engine._02Engine.desktop << 'EOF'
+        [Desktop Entry]
+        Name=02Engine
+        Exec=02engine %U
+        Terminal=false
+        Type=Application
+        Icon=io.github._02engine._02Engine
+        StartupWMClass=02Engine-desktop
+        Comment=Better Scratch. Based on Turbowarp.
+        MimeType=application/x.scratch.sb3;application/x.scratch.sb2;application/x.scratch.sb;
+        Categories=Development;Education;
+        Keywords=scratch;programming;animation;
+        EOF
+
+      # Create metainfo file for AppStream
+      - |
+        cat > /app/share/metainfo/io.github._02engine._02Engine.metainfo.xml << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <component type="desktop-application">
+          <id>io.github._02engine._02Engine</id>
+          <launchable type="desktop-id">io.github._02engine._02Engine.desktop</launchable>
+          <metadata_license>CC0-1.0</metadata_license>
+          <project_license>GPL-3.0</project_license>
+          <name>02Engine</name>
+          <developer id="io.github._02engine">
+            <name>02Studio</name>
+          </developer>
+          <summary>Better Scratch. Based on Turbowarp.</summary>
+          <description>
+            <p>02Engine is a Scratch mod based on TurboWarp with enhanced features for designing and animating.</p>
+            <p>Features:</p>
+            <ul>
+              <li>Runs projects up to 100x faster than Scratch</li>
+              <li>Dark mode for comfortable editing</li>
+              <li>Many addons to improve the editor experience</li>
+              <li>Native filesystem integration</li>
+              <li>Support for .sb3, .sb2, and .sb project files</li>
+            </ul>
+          </description>
+          <screenshots>
+            <screenshot type="default">
+              <image>https://raw.githubusercontent.com/02engine/desktop/main/art/icon.png</image>
+            </screenshot>
+          </screenshots>
+          <url type="homepage">https://02engine.org/</url>
+          <url type="bugtracker">https://github.com/02engine/desktop/issues</url>
+          <url type="vcs-browser">https://github.com/02engine/desktop</url>
+          <categories>
+            <category>Development</category>
+            <category>Education</category>
+          </categories>
+          <keywords>
+            <keyword>scratch</keyword>
+            <keyword>programming</keyword>
+            <keyword>animation</keyword>
+          </keywords>
+          <recommends>
+            <control>pointing</control>
+            <control>keyboard</control>
+          </recommends>
+          <supports>
+            <control>touch</control>
+          </supports>
+          <content_rating type="oars-1.1">
+            <content_attribute id="social-chat">mild</content_attribute>
+            <content_attribute id="social-info">mild</content_attribute>
+          </content_rating>
+        </component>
+        EOF
+
+      # Create symlink for command
+      - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
