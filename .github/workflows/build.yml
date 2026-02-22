@@ -418,12 +418,25 @@ jobs:
           name: linux-snap-x64
           path: dist/*.snap
 
+      - name: Find generated snap file
+        id: find-snap
+        run: |
+          SNAP_FILE=$(find dist -type f -name "*.snap" | head -n 1)
+          if [ -z "$SNAP_FILE" ]; then
+            echo "No .snap file found in dist/"
+            ls -la dist/ || true
+            exit 1
+          fi
+          echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
+          echo "Found snap file: $SNAP_FILE"
+
       - name: Publish x64 snap to Snap Store
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
         with:
-          snap: dist/*.snap
+          snap: ${{ steps.find-snap.outputs.snap_file }}
           release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
 
   build-linux-snap-armv7l:
@@ -469,12 +482,25 @@ jobs:
           name: linux-snap-armv7l
           path: dist/*.snap
 
+      - name: Find generated snap file
+        id: find-snap
+        run: |
+          SNAP_FILE=$(find dist -type f -name "*.snap" | head -n 1)
+          if [ -z "$SNAP_FILE" ]; then
+            echo "No .snap file found in dist/"
+            ls -la dist/ || true
+            exit 1
+          fi
+          echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
+          echo "Found snap file: $SNAP_FILE"
+
       - name: Publish armv7l snap to Snap Store
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
         with:
-          snap: dist/*.snap
+          snap: ${{ steps.find-snap.outputs.snap_file }}
           release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
 
   build-linux-snap-arm64:
@@ -532,12 +558,26 @@ jobs:
           name: linux-snap-arm64
           path: dist/*.snap || ./*.snap
 
+      - name: Find generated snap file
+        id: find-snap
+        run: |
+          SNAP_FILE=$(find . -type f -name "*.snap" -not -path "./.git/*" | head -n 1)
+          if [ -z "$SNAP_FILE" ]; then
+            echo "No .snap file found!"
+            ls -la . || true
+            find . -name "*.snap" || true
+            exit 1
+          fi
+          echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
+          echo "Found snap file: $SNAP_FILE"
+
       - name: Publish arm64 snap to Snap Store
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
         with:
-          snap: dist/*.snap || ./*.snap
+          snap: ${{ steps.find-snap.outputs.snap_file }}
           release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
 
   # ── Arch Linux (使用 debtap 转换 deb → pkg.tar.zst) ──
