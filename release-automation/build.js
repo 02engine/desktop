@@ -4,24 +4,25 @@ const pathUtil = require('path');
 const childProcess = require('child_process');
 const builder = require('electron-builder');
 const electronFuses = require('@electron/fuses');
-const {Platform, Arch} = builder;
+const { Platform, Arch } = builder;
 
 const isProduction = process.argv.includes('--production');
 
-// Electron 22 是最後支援 Windows 7/8/8.1 的版本
+// Electron 22 is the last version supporting Windows 7/8/8.1
 const ELECTRON_22_FINAL = '22.3.27';
-// Electron 26 是最後支援 macOS 10.13、10.14 的版本
+// Electron 26 is the last version supporting macOS 10.13/10.14
 const ELECTRON_26_FINAL = '26.6.10';
-// Electron 32 是最後支援 macOS 10.15 的版本
+// Electron 32 is the last version supporting macOS 10.15
 const ELECTRON_32_FINAL = '32.3.3';
-// Electron 37 是目前最後支援 macOS 11 的版本（仍可能繼續更新）
+// Electron 37 is currently the last version supporting macOS 11 (may receive further updates)
 const ELECTRON_37_FINAL = '37.8.0';
 
 /**
+ * Get SOURCE_DATE_EPOCH for reproducible builds
  * @returns {Date}
  */
 const getSourceDateEpoch = () => {
-  // 備用日期，來自 commit 35045e7c0fa4e4e14b2747e967adb4029cedb945
+  // Fallback date from commit 35045e7c0fa4e4e14b2747e967adb4029cedb945
   const ARBITRARY_FALLBACK = 1609809111000;
 
   if (process.env.SOURCE_DATE_EPOCH) {
@@ -36,6 +37,7 @@ const getSourceDateEpoch = () => {
     }
     throw gitProcess.error;
   }
+
   if (gitProcess.status !== 0) {
     console.warn(`Could not get source date epoch: git returned status ${gitProcess.status}`);
     return new Date(ARBITRARY_FALLBACK);
@@ -46,7 +48,7 @@ const getSourceDateEpoch = () => {
     return new Date((+gitStdout) * 1000);
   }
 
-  console.warn(`Could not get source date epoch: git did not return a date`);
+  console.warn('Could not get source date epoch: git did not return a date');
   return new Date(ARBITRARY_FALLBACK);
 };
 
@@ -147,6 +149,7 @@ const build = async ({
       throw new Error(`Unknown platform: ${platformName}`);
     }
     const platform = Platform[platformName];
+
     const target = platform.createTarget(platformType, arch);
 
     let distributionName = `${platformName}-${platformType}-${archName}`.toLowerCase();
@@ -156,6 +159,7 @@ const build = async ({
     if (legacy) {
       distributionName = `${distributionName}-legacy`;
     }
+
     console.log(`Building distribution: ${distributionName}`);
 
     const config = {
@@ -182,6 +186,8 @@ const build = async ({
     await buildForArch(archName);
   }
 };
+
+// ── Windows targets ─────────────────────────────────────────────────────────────
 
 const buildWindows = () => build({
   platformName: 'WINDOWS',
@@ -219,6 +225,8 @@ const buildMicrosoftStore = () => build({
   platformType: 'appx',
   manageUpdates: false
 });
+
+// ── macOS targets ───────────────────────────────────────────────────────────────
 
 const buildMac = () => build({
   platformName: 'MAC',
@@ -271,6 +279,8 @@ const buildMacDir = () => build({
   manageUpdates: true
 });
 
+// ── Linux targets ───────────────────────────────────────────────────────────────
+
 const buildDebian = () => build({
   platformName: 'LINUX',
   platformType: 'deb',
@@ -316,16 +326,14 @@ const buildLinuxDir = () => build({
   manageUpdates: true
 });
 
-// ── 新增 snap 支持 ────────────────────────────────────────────────
 const buildSnap = () => {
-  console.log("Snap 构建提示：snapcraft 必须在 Linux 环境下运行");
-  console.log("非 x64 架构（如 arm64）可能需要 destructive mode (SNAPCRAFT_BUILD_ENVIRONMENT=host)");
-
+  console.log("Snap build note: snapcraft must be run in a Linux environment");
+  console.log("Non-x64 architectures (e.g. arm64) may require destructive mode (SNAPCRAFT_BUILD_ENVIRONMENT=host)");
   return build({
     platformName: 'LINUX',
     platformType: 'snap',
     manageUpdates: true
-    // 如果需要额外 snap 配置，可以在这里覆盖 package.json 的 snap 字段
+    // You can override snap-specific fields from package.json here if needed
     // extraConfig: {
     //   snap: {
     //     base: 'core24',
@@ -334,6 +342,61 @@ const buildSnap = () => {
     // }
   });
 };
+
+// ── Added: rpm target ───────────────────────────────────────────────────────────
+
+const buildRpm = () => build({
+  platformName: 'LINUX',
+  platformType: 'rpm',
+  manageUpdates: true
+  // Optional: customize rpm behavior
+  // extraConfig: {
+  //   rpm: {
+  //     fpm: ["--rpm-compression", "xz"],
+  //     depends: [...]
+  //   }
+  // }
+});
+
+// ── Added: pacman target + rename to .pkg.tar.zst (Arch standard) ──────────────
+
+const buildPacman = () => build({
+  platformName: 'LINUX',
+  platformType: 'pacman',
+  manageUpdates: true,
+  extraConfig: {
+    // You can override pacman fields from package.json here if needed
+    // pacman: {
+    //   compression: "xz",   // electron-builder pacman supports xz by default
+    // }
+
+    // Rename .pacman → .pkg.tar.zst after build (Arch Linux convention)
+    artifactBuildCompleted: async (artifact) => new Promise((resolve, reject) => {
+      const oldPath = artifact.file;
+      if (!oldPath.endsWith('.pacman')) {
+        console.warn(`Unexpected pacman artifact extension: ${oldPath}`);
+        return resolve();
+      }
+
+      const newPath = oldPath.replace(/\.pacman$/, '.pkg.tar.zst');
+
+      console.log(`Renaming pacman artifact to Arch standard format: ${oldPath} → ${newPath}`);
+
+      fs.rename(oldPath, newPath, (err) => {
+        if (err) {
+          console.error(`Failed to rename pacman artifact: ${err}`);
+          reject(err);
+        } else {
+          // Important: update the artifact path so electron-builder knows the new location
+          artifact.file = newPath;
+          resolve();
+        }
+      });
+    })
+  }
+});
+
+// ── Command line handlers ──────────────────────────────────────────────────────
 
 const run = async () => {
   const options = {
@@ -351,7 +414,9 @@ const run = async () => {
     '--tarball': buildTarball,
     '--appimage': buildAppImage,
     '--linux-dir': buildLinuxDir,
-    '--snap': buildSnap               // ← 新增 snap 命令行支持
+    '--snap': buildSnap,
+    '--rpm': buildRpm,
+    '--pacman': buildPacman
   };
 
   let built = 0;
@@ -363,7 +428,7 @@ const run = async () => {
   }
 
   if (built === 0) {
-    console.log('Need to specify platforms; see release-automation/README.md');
+    console.log('No platform specified. See release-automation/README.md for usage.');
     process.exit(1);
   }
 };
