@@ -1,437 +1,162 @@
-name: Build (Manual)
+name: Build
 
 on:
   workflow_dispatch:
 
 jobs:
-  prepare-for-arch:
-    runs-on: ubuntu-latest
+  build-linux:
+    runs-on: ${{ matrix.runner }}
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # x64
+          - arch: x64
+            format: debian
+            artifact: linux-debian-x64
+            pattern: "*.deb"
+            runner: ubuntu-latest
+            snapcraft: false
+
+          - arch: x64
+            format: rpm
+            artifact: linux-rpm-x64
+            pattern: "*.rpm"
+            runner: ubuntu-latest
+            snapcraft: false
+
+          - arch: x64
+            format: pacman
+            artifact: linux-pacman-x64
+            pattern: "*.pkg.tar.zst"
+            runner: ubuntu-latest
+            snapcraft: false
+
+          - arch: x64
+            format: tarball
+            artifact: linux-tarball-x64
+            pattern: "*.tar.gz"
+            runner: ubuntu-latest
+            snapcraft: false
+
+          - arch: x64
+            format: appimage
+            artifact: linux-appimage-x64
+            pattern: "*.AppImage"
+            runner: ubuntu-latest
+            snapcraft: false
+
+          - arch: x64
+            format: snap
+            artifact: linux-snap-x64
+            pattern: "*.snap"
+            runner: ubuntu-latest
+            snapcraft: true
+
+          # arm64
+          - arch: arm64
+            format: debian
+            artifact: linux-debian-arm64
+            pattern: "*.deb"
+            runner: ubuntu-latest-arm
+            snapcraft: false
+
+          - arch: arm64
+            format: rpm
+            artifact: linux-rpm-arm64
+            pattern: "*.rpm"
+            runner: ubuntu-latest-arm
+            snapcraft: false
+
+          - arch: arm64
+            format: pacman
+            artifact: linux-pacman-arm64
+            pattern: "*.pkg.tar.zst"
+            runner: ubuntu-latest-arm
+            snapcraft: false
+
+          - arch: arm64
+            format: tarball
+            artifact: linux-tarball-arm64
+            pattern: "*.tar.gz"
+            runner: ubuntu-latest-arm
+            snapcraft: false
+
+          - arch: arm64
+            format: appimage
+            artifact: linux-appimage-arm64
+            pattern: "*.AppImage"
+            runner: ubuntu-latest-arm
+            snapcraft: false
+
+          - arch: arm64
+            format: snap
+            artifact: linux-snap-arm64
+            pattern: "*.snap"
+            runner: ubuntu-latest-arm
+            snapcraft: true
+
+          # armv7l（如果仍需支持，可保留；否则可删除这三行）
+          - arch: armv7l
+            format: debian
+            artifact: linux-debian-armv7l
+            pattern: "*.deb"
+            runner: ubuntu-latest
+            snapcraft: false
+
+          - arch: armv7l
+            format: tarball
+            artifact: linux-tarball-armv7l
+            pattern: "*.tar.gz"
+            runner: ubuntu-latest
+            snapcraft: false
+
+          - arch: armv7l
+            format: appimage
+            artifact: linux-appimage-armv7l
+            pattern: "*.AppImage"
+            runner: ubuntu-latest
+            snapcraft: false
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-          persist-credentials: false
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: convert-script
-          path: scripts/convertarch.sh
-
-  # debian 系
-  build-linux-debian-x64:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
 
-      - name: Install dependencies
-        run: bun install --loglevel=info
+      - run: bun install --loglevel=info
 
-      - name: Fetch
-        env:
+      - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
-      - name: Compile
-        run: bun run webpack:prod
+      - run: bun run webpack:prod
 
-      - name: Package
-        run: node release-automation/build.js --debian --x64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-debian-x64
-          path: dist/*.deb
-
-  build-linux-debian-armv7l:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --debian --armv7l
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-debian-armv7l
-          path: dist/*.deb
-
-  build-linux-debian-arm64:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --debian --arm64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-debian-arm64
-          path: dist/*.deb
-
-  # tarball 系
-  build-linux-tarball-x64:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --tarball --x64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-tarball-x64
-          path: dist/*.tar.gz
-
-  build-linux-tarball-armv7l:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --tarball --armv7l
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-tarball-armv7l
-          path: dist/*.tar.gz
-
-  build-linux-tarball-arm64:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --tarball --arm64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-tarball-arm64
-          path: dist/*.tar.gz
-
-  # AppImage 系
-  build-linux-appimage-x64:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --appimage --x64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-appimage-x64
-          path: dist/*.AppImage
-
-  build-linux-appimage-armv7l:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --appimage --armv7l
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-appimage-armv7l
-          path: dist/*.AppImage
-
-  build-linux-appimage-arm64:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --appimage --arm64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-appimage-arm64
-          path: dist/*.AppImage
-
-  # ── Snap 系 ───────────────────────────────────────────────────────
-  build-linux-snap-x64:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install snapcraft
+      - if: matrix.snapcraft
         run: sudo snap install snapcraft --classic
 
-      - name: Install dependencies
-        run: bun install --loglevel=info
+      - run: node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
 
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --snap --x64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: linux-snap-x64
-          path: dist/*.snap
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.pattern }}
 
-      - name: Find generated snap file
+      - if: matrix.snapcraft
         id: find-snap
         run: |
           SNAP_FILE=$(find dist -type f -name "*.snap" | head -n 1)
-          if [ -z "$SNAP_FILE" ]; then
-            echo "No .snap file found in dist/"
-            ls -la dist/ || true
-            exit 1
-          fi
+          [ -z "$SNAP_FILE" ] && exit 1
           echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
-          echo "Found snap file: $SNAP_FILE"
 
-      - name: Publish x64 snap to Snap Store
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+      - if: matrix.snapcraft && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
@@ -439,388 +164,6 @@ jobs:
           snap: ${{ steps.find-snap.outputs.snap_file }}
           release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
 
-  build-linux-snap-armv7l:
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      SNAPCRAFT_BUILD_ENVIRONMENT: host
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install snapcraft
-        run: sudo snap install snapcraft --classic
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --snap --armv7l
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-snap-armv7l
-          path: dist/*.snap
-
-      - name: Find generated snap file
-        id: find-snap
-        run: |
-          SNAP_FILE=$(find dist -type f -name "*.snap" | head -n 1)
-          if [ -z "$SNAP_FILE" ]; then
-            echo "No .snap file found in dist/"
-            ls -la dist/ || true
-            exit 1
-          fi
-          echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
-          echo "Found snap file: $SNAP_FILE"
-
-      - name: Publish armv7l snap to Snap Store
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-        uses: snapcore/action-publish@v1
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
-        with:
-          snap: ${{ steps.find-snap.outputs.snap_file }}
-          release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
-
-  build-linux-snap-arm64:
-    runs-on: ubuntu-latest-arm
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      SNAPCRAFT_BUILD_ENVIRONMENT: host
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install snapcraft
-        run: sudo snap install snapcraft --classic
-
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Package
-        run: node release-automation/build.js --snap --arm64
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-snap-arm64
-          path: dist/*.snap
-
-      - name: Find generated snap file
-        id: find-snap
-        run: |
-          SNAP_FILE=$(find dist -type f -name "*.snap" | head -n 1)
-          if [ -z "$SNAP_FILE" ]; then
-            echo "No .snap file found in dist/"
-            ls -la dist/ || true
-            exit 1
-          fi
-          echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
-          echo "Found snap file: $SNAP_FILE"
-
-      - name: Publish arm64 snap to Snap Store
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-        uses: snapcore/action-publish@v1
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
-        with:
-          snap: ${{ steps.find-snap.outputs.snap_file }}
-          release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
-
-  # ── Arch Linux (使用 debtap 转换 deb → pkg.tar.zst) ──
-  build-linux-pkg-tar-zst-x64:
-    needs: build-linux-debian-x64
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux:base-devel
-      options: --privileged
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Prepare Arch environment
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
-          useradd -m -s /bin/bash builduser
-          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
-          echo 'export TERM=xterm' >> /etc/bash.bashrc
-
-      - name: Install and update debtap
-        run: |
-          sudo -u builduser bash <<'EOF'
-          set -e
-          export TERM=xterm
-          cd /home/builduser
-          git clone https://aur.archlinux.org/debtap.git
-          cd debtap
-          makepkg -si --noconfirm
-          EOF
-          
-          debtap -u
-          debtap --version || true
-
-      - name: Download debian-x64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-debian-x64
-          path: /workspace/dist
-
-      - name: Download convert script artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: convert-script
-          path: /workspace/
-
-      - name: Setup workspace
-        run: |
-          cd /workspace
-          mkdir -p arch-packages
-          ls -la dist || true
-
-          if [ ! -f convertarch.sh ]; then
-            echo "Error: convertarch.sh not found after downloading artifact"
-            ls -la .
-            exit 1
-          fi
-
-          chmod +x convertarch.sh
-          sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
-          
-          find dist -name "*.deb" | sort || true
-
-      - name: Convert packages
-        working-directory: /workspace
-        run: |
-          export TERM=xterm
-          ./convertarch.sh
-
-      - name: Verify packages
-        working-directory: /workspace
-        run: |
-          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || true
-          ls -la arch-packages/ 2>/dev/null || true
-
-      - name: Copy arch files to dist
-        run: cp arch-packages/*.pkg.tar.zst dist/ 2>/dev/null || true
-
-      - name: Upload Arch
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-arch-x64
-          path: |
-            /workspace/arch-packages/*.pkg.tar.zst
-
-  build-linux-pkg-tar-zst-arm64:
-    needs: build-linux-debian-arm64
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux:base-devel
-      options: --privileged
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Prepare Arch environment
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
-          useradd -m -s /bin/bash builduser
-          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
-          echo 'export TERM=xterm' >> /etc/bash.bashrc
-
-      - name: Install and update debtap
-        run: |
-          sudo -u builduser bash <<'EOF'
-          set -e
-          export TERM=xterm
-          cd /home/builduser
-          git clone https://aur.archlinux.org/debtap.git
-          cd debtap
-          makepkg -si --noconfirm
-          EOF
-          
-          debtap -u
-          debtap --version || true
-
-      - name: Download debian-arm64 artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-debian-arm64
-          path: /workspace/dist
-
-      - name: Download convert script artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: convert-script
-          path: /workspace/
-
-      - name: Setup workspace
-        run: |
-          cd /workspace
-          mkdir -p arch-packages
-          ls -la dist || true
-
-          if [ ! -f convertarch.sh ]; then
-            echo "Error: convertarch.sh not found after downloading artifact"
-            ls -la .
-            exit 1
-          fi
-
-          chmod +x convertarch.sh
-          sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
-          
-          find dist -name "*.deb" | sort || true
-
-      - name: Convert packages
-        working-directory: /workspace
-        run: |
-          export TERM=xterm
-          ./convertarch.sh
-
-      - name: Verify packages
-        working-directory: /workspace
-        run: |
-          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || true
-          ls -la arch-packages/ 2>/dev/null || true
-
-      - name: Copy arch files to dist
-        run: cp arch-packages/*.pkg.tar.zst dist/ 2>/dev/null || true
-
-      - name: Upload Arch
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-arch-arm64
-          path: |
-            /workspace/arch-packages/*.pkg.tar.zst
-
-  build-linux-pkg-tar-zst-armv7l:
-    needs: build-linux-debian-armv7l
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux:base-devel
-      options: --privileged
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Prepare Arch environment
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
-          useradd -m -s /bin/bash builduser
-          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
-          echo 'export TERM=xterm' >> /etc/bash.bashrc
-
-      - name: Install and update debtap
-        run: |
-          sudo -u builduser bash <<'EOF'
-          set -e
-          export TERM=xterm
-          cd /home/builduser
-          git clone https://aur.archlinux.org/debtap.git
-          cd debtap
-          makepkg -si --noconfirm
-          EOF
-          
-          debtap -u
-          debtap --version || true
-
-      - name: Download debian-armv7l artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-debian-armv7l
-          path: /workspace/dist
-
-      - name: Download convert script artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: convert-script
-          path: /workspace/
-
-      - name: Setup workspace
-        run: |
-          cd /workspace
-          mkdir -p arch-packages
-          ls -la dist || true
-
-          if [ ! -f convertarch.sh ]; then
-            echo "Error: convertarch.sh not found after downloading artifact"
-            ls -la .
-            exit 1
-          fi
-
-          chmod +x convertarch.sh
-          sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
-          
-          find dist -name "*.deb" | sort || true
-
-      - name: Convert packages
-        working-directory: /workspace
-        run: |
-          export TERM=xterm
-          ./convertarch.sh
-
-      - name: Verify packages
-        working-directory: /workspace
-        run: |
-          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || true
-          ls -la arch-packages/ 2>/dev/null || true
-
-      - name: Copy arch files to dist
-        run: cp arch-packages/*.pkg.tar.zst dist/ 2>/dev/null || true
-
-      - name: Upload Arch
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-arch-armv7l
-          path: |
-            /workspace/arch-packages/*.pkg.tar.zst
-
-  # macOS 构建（保持不变）
   build-mac:
     runs-on: macos-latest
     strategy:
@@ -828,131 +171,101 @@ jobs:
       matrix:
         include:
           - target: modern
-            args: '--mac --universal'
+            args: --mac --universal
           - target: legacy-10.13-10.14
-            args: '--mac-legacy-10.13-10.14 --x64'
+            args: --mac-legacy-10.13-10.14 --x64
           - target: legacy-10.15
-            args: '--mac-legacy-10.15 --x64'
+            args: --mac-legacy-10.15 --x64
           - target: legacy-11
-            args: '--mac-legacy-11 --universal'
+            args: --mac-legacy-11 --universal
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-          persist-credentials: false
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
 
-      - name: Install dependencies
-        run: bun install --loglevel=info
+      - run: bun install --loglevel=info
 
-      - name: Fetch
-        env:
+      - env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
-      - name: Compile
-        run: bun run webpack:prod
+      - run: bun run webpack:prod
 
-      - name: Package
-        run: |
-          node release-automation/build.js ${{ matrix.args }}
+      - run: node release-automation/build.js ${{ matrix.args }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: mac-${{ matrix.target }}
           path: dist/*.dmg
 
-  # Windows 构建（保持不变）
   build-windows:
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: modern-nsis-x64
-            args: '--windows --x64'
-            files: '*.exe'
-          - target: modern-nsis-ia32
-            args: '--windows --ia32'
-            files: '*.exe'
-          - target: modern-nsis-arm64
-            args: '--windows --arm64'
-            files: '*.exe'
-          - target: modern-appx-x64
-            args: '--microsoft-store --x64'
-            files: '*.appx'
-          - target: modern-appx-ia32
-            args: '--microsoft-store --ia32'
-            files: '*.appx'
-          - target: modern-appx-arm64
-            args: '--microsoft-store --arm64'
-            files: '*.appx'
-          - target: portable
-            args: '--windows-portable --x64'
-            files: '*.exe'
-          - target: legacy-x64
-            args: '--windows-legacy --x64'
-            files: '*.exe'
-          - target: legacy-ia32
-            args: '--windows-legacy --ia32'
-            files: '*.exe'
+          - target: nsis-x64
+            args: --windows --x64
+            files: "*.exe"
+          - target: nsis-ia32
+            args: --windows --ia32
+            files: "*.exe"
+          - target: nsis-arm64
+            args: --windows --arm64
+            files: "*.exe"
+          - target: appx-x64
+            args: --microsoft-store --x64
+            files: "*.appx"
+          - target: appx-ia32
+            args: --microsoft-store --ia32
+            files: "*.appx"
+          - target: appx-arm64
+            args: --microsoft-store --arm64
+            files: "*.appx"
+          - target: portable-x64
+            args: --windows-portable --x64
+            files: "*.exe"
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          submodules: recursive
-          persist-credentials: false
           path: repo
 
-      - name: Move to D drive
-        shell: pwsh
-        run: |
+      - run: |
           Copy-Item -Path repo -Destination D:\repo -Recurse
           Remove-Item -Path repo -Recurse -Force
+        shell: pwsh
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
 
-      - name: "Configure Bun cache and prefix to D: drive"
-        run: |
+      - run: |
           echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
           echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
 
-      - name: Install dependencies
-        working-directory: D:\repo
+      - working-directory: D:\repo
         run: bun install --loglevel=info
 
-      - name: Fetch
-        working-directory: D:\repo
+      - working-directory: D:\repo
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
-      - name: Compile
-        working-directory: D:\repo
+      - working-directory: D:\repo
         run: bun run webpack:prod
 
-      - name: Package
-        working-directory: D:\repo
-        run: |
-          node release-automation/build.js ${{ matrix.args }}
+      - working-directory: D:\repo
+        run: node release-automation/build.js ${{ matrix.args }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.target }}
           path: D:\repo\dist\${{ matrix.files }}
