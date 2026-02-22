@@ -60,35 +60,35 @@ jobs:
             format: debian
             artifact: linux-debian-arm64
             pattern: "*.deb"
-            runner: ubuntu-latest-arm
+            runner: ubuntu-latest
             snapcraft: false
 
           - arch: arm64
             format: rpm
             artifact: linux-rpm-arm64
             pattern: "*.rpm"
-            runner: ubuntu-latest-arm
+            runner: ubuntu-latest
             snapcraft: false
 
           - arch: arm64
             format: pacman
             artifact: linux-pacman-arm64
             pattern: "*.pkg.tar.zst"
-            runner: ubuntu-latest-arm
+            runner: ubuntu-latest
             snapcraft: false
 
           - arch: arm64
             format: tarball
             artifact: linux-tarball-arm64
             pattern: "*.tar.gz"
-            runner: ubuntu-latest-arm
+            runner: ubuntu-latest
             snapcraft: false
 
           - arch: arm64
             format: appimage
             artifact: linux-appimage-arm64
             pattern: "*.AppImage"
-            runner: ubuntu-latest-arm
+            runner: ubuntu-latest
             snapcraft: false
 
           - arch: arm64
@@ -98,7 +98,6 @@ jobs:
             runner: ubuntu-latest-arm
             snapcraft: true
 
-          # armv7l（如果仍需支持，可保留；否则可删除这三行）
           - arch: armv7l
             format: debian
             artifact: linux-debian-armv7l
