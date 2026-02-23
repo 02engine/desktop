@@ -1,0 +1,64 @@
+name: Generate Bun Offline Cache Tarball
+
+on:
+  workflow_dispatch:          # 手动触发（推荐先用这个测试）
+  push:
+    branches: [main, master]  # 可选：push 时也自动跑
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  generate-cache:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ─────────────── 安装 Bun ───────────────
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest     # 或指定版本如 1.1.13 / 1.3.8
+
+      # ─────────────── 执行 bun install，生成全局缓存 ───────────────
+      - name: Run bun install to populate cache
+        run: |
+          bun install --frozen-lockfile || bun install   # 如果 lockfile 不存在就 fallback
+
+      # ─────────────── 打包缓存目录 ───────────────
+      - name: Prepare and tar Bun offline cache
+        run: |
+          mkdir -p bun-offline-cache
+          
+          # 复制 Bun 的全局缓存（通常所有 .tgz 文件都在这里）
+          if [ -d "$HOME/.bun/install/cache" ]; then
+            cp -r "$HOME/.bun/install/cache"/* bun-offline-cache/ 2>/dev/null || true
+          else
+            echo "Warning: Bun cache directory not found at $HOME/.bun/install/cache"
+          fi
+          
+          # 如果你只想要 .tgz 文件，可以加过滤：
+          # find "$HOME/.bun/install/cache" -name "*.tgz" -exec cp {} bun-offline-cache/ \;
+          
+          # 压缩成 tar.gz
+          tar -czf bun-cache.tar.gz bun-offline-cache
+
+      # ─────────────── 上传 tar.gz 作为 artifact（供下载） ───────────────
+      - name: Upload bun-cache.tar.gz artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bun-offline-cache
+          path: bun-cache.tar.gz
+          if-no-files-found: warn          # 如果缓存为空也继续
+          retention-days: 30               # 保留 30 天，可调整
+          compression-level: 6             # 默认压缩
+
+      # ─────────────── 显示结果信息（方便调试） ───────────────
+      - name: Show cache size and contents summary
+        run: |
+          echo "Generated file size:"
+          du -sh bun-cache.tar.gz || echo "File not created"
+          echo ""
+          echo "Top 10 files in cache (if any):"
+          tar -tzf bun-cache.tar.gz | head -n 10 || echo "No files in tar"
