@@ -5,6 +5,7 @@
 [![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 # 02Engine Desktop
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 02Engine as a desktop app.Based on Turbowarp.
 
@@ -15,10 +16,12 @@ Licensed under the GPLv3.0. See LICENSE for more information.
 Parts of this repository are based on [TurboWarp/desktop](https://github.com/TurboWarp/desktop).
 
 ## Website
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 The website source code is in the `docs` folder.
 
 ## Development
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 We use submodules, so clone using:
 
@@ -78,6 +81,7 @@ In Linux, The app icon won't work in the development version, but it will work i
 We've found that development can work pretty well if you open two terminals side-by-side and run `npm run webpack:watch` in one and `npm run electron:start` in the other. You can refresh the windows with ctrl+R or cmd+R for renderer file changes to apply, and manually restart the app for main file changes to apply.
 
 ## Linux sandbox helper error
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 On some Linux distributions, Electron will crash with the message `The SUID sandbox helper binary was found, but is not configured correctly. Rather than run without sandboxing I'm aborting now. You need to make sure that /home/.../turbowarp-desktop/node_modules/electron/dist/chrome-sandbox is owned by root and has mode 4755.`. Notably we have seen this happen on Debian 10 and earlier and Ubuntu 24.04 and later.
 
@@ -95,6 +99,7 @@ sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 There are ways to make this permanent, but we don't think you should be making permanent kernel configuration changes just to develop this app. This error won't happen in the final .deb package, Flathub, or Snap Store releases.
 
 ## Final production-ready builds
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 The development version of the app will be larger and slower than the final release builds.
 
@@ -119,6 +124,7 @@ npx electron-builder --linux deb
 You can typically only package for a certain operating system while on that operating system.
 
 ## Code signing policy
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 TurboWarp Desktop uses a free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
@@ -127,6 +133,7 @@ TurboWarp Desktop uses a free code signing provided by [SignPath.io](https://abo
  * Privacy policy: https://desktop.turbowarp.org/privacy.html
 
 ## Advanced customizations
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 TurboWarp Desktop lets you configure custom JS and CSS without rebuilding the app.
 
@@ -143,5 +150,6 @@ Find TurboWarp Desktop's data path by using the list below or by clicking "?" in
 Create the file `userscript.js` in this folder to configure custom JS. Create the file `userstyle.css` in this folder to configure custom CSS. Completely restart TurboWarp Desktop (including all windows) to apply.
 
 ## Uninstall
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
 
 See https://desktop.turbowarp.org/uninstall
