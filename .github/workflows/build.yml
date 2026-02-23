@@ -95,7 +95,7 @@ jobs:
             format: snap
             artifact: linux-snap-arm64
             pattern: "*.snap"
-            runner: ubuntu-latest-arm
+            runner: ubuntu-latest
             snapcraft: true
 
           - arch: armv7l
@@ -142,29 +142,54 @@ jobs:
 
       - run: bun run webpack:prod
 
-      - if: matrix.snapcraft
+      # 只针对 snap arm64 加 QEMU（最小影响其他 job）
+      - name: Set up QEMU (for snap arm64 emulation)
+        if: matrix.format == 'snap' && matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      # snap x64 保持原安装方式
+      - if: matrix.snapcraft && matrix.arch != 'arm64'
         run: sudo snap install snapcraft --classic
 
+      # snap arm64 用专用 action 构建 snap（内部容器 + emulation，最稳定）
+      - name: Build snap arm64 with container action
+        if: matrix.format == 'snap' && matrix.arch == 'arm64'
+        uses: diddlesnaps/snapcraft-multiarch-action@v1
+        id: snapcraft
+        with:
+          architecture: arm64
+
+      # 所有格式都跑 build.js（保持原逻辑，snap arm64 的 snapcraft 会被 action 接管）
       - run: node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.pattern }}
+          path: |
+            ${{ matrix.format == 'snap' && matrix.arch == 'arm64' && steps.snapcraft.outputs.snap || format('dist/{0}', matrix.pattern) }}
 
-      - if: matrix.snapcraft
+      # snap 文件查找（arm64 用 action 输出，其他用 find）
+      - if: matrix.snapcraft && matrix.arch == 'arm64'
+        id: find-snap-arm64
+        run: |
+          echo "snap_file=${{ steps.snapcraft.outputs.snap }}" >> $GITHUB_OUTPUT
+
+      - if: matrix.snapcraft && matrix.arch != 'arm64'
         id: find-snap
         run: |
           SNAP_FILE=$(find dist -type f -name "*.snap" | head -n 1)
           [ -z "$SNAP_FILE" ] && exit 1
           echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
 
+      # publish（条件选择 outputs）
       - if: matrix.snapcraft && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
         with:
-          snap: ${{ steps.find-snap.outputs.snap_file }}
+          snap: ${{ matrix.arch == 'arm64' && steps.find-snap-arm64.outputs.snap_file || steps.find-snap.outputs.snap_file }}
           release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
 
   build-mac:
