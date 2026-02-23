@@ -26,6 +26,8 @@ jobs:
       uses: oven-sh/setup-bun@v2
     - name: Install dependencies
       run: bun install --frozen-lockfile --loglevel=info
+    - name: Install dependencies21
+      run: ls -la
     - name: Upload artifacts to GitHub Actions
       uses: actions/upload-artifact@v4
       with:
