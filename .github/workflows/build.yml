@@ -53,7 +53,6 @@ jobs:
             runner: ubuntu-latest
             snapcraft: true
 
-          # arm64（删除 snap 条目，保留其他格式）
           - arch: arm64
             format: debian
             artifact: linux-debian-arm64
@@ -89,7 +88,6 @@ jobs:
             runner: ubuntu-latest
             snapcraft: false
 
-          # armv7l（无 snap 支持，无需改动）
           - arch: armv7l
             format: debian
             artifact: linux-debian-armv7l
