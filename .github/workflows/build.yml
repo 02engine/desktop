@@ -282,7 +282,7 @@ jobs:
         with:
           path: repo
 
-      - name: Move repository to D: drive
+      - name: "Move repository to D: drive"
         run: |
           Copy-Item -Path repo -Destination D:\repo -Recurse
           Remove-Item -Path repo -Recurse -Force
@@ -296,7 +296,7 @@ jobs:
       - name: Setup bun ⚙️
         uses: oven-sh/setup-bun@v2
 
-      - name: Configure Bun cache and prefix to D: drive
+      - name: "Configure Bun cache and prefix to D: drive"
         run: |
           echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
           echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
