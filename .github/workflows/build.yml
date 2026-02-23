@@ -53,6 +53,7 @@ jobs:
             runner: ubuntu-latest
             snapcraft: true
 
+          # arm64（已移除 snap 支持）
           - arch: arm64
             format: debian
             artifact: linux-debian-arm64
@@ -88,6 +89,7 @@ jobs:
             runner: ubuntu-latest
             snapcraft: false
 
+          # armv7l
           - arch: armv7l
             format: debian
             artifact: linux-debian-armv7l
@@ -139,7 +141,7 @@ jobs:
         run: bun run webpack:prod
 
       - name: Install snapcraft (only for x64 snap)
-        if: matrix.format == 'snap' && matrix.arch == 'x64'
+        if: matrix.format == 'snap'
         run: sudo snap install snapcraft --classic
 
       - name: Package
@@ -156,15 +158,24 @@ jobs:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.pattern }}
 
-      # 只保留 amd64 (x64) 的 snap 发布，arm64 已移除
       - name: Publish snap to Snap Store
         if: matrix.format == 'snap' && matrix.arch == 'x64' && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
-        uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
-        with:
-          snap: dist/*.snap
-          release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
+        run: |
+          # 查找 dist 目录下的 .snap 文件（通常只有一个）
+          SNAP_FILE=$(ls -1 dist/*.snap 2>/dev/null | head -n 1)
+
+          if [ -z "$SNAP_FILE" ]; then
+            echo "错误：dist 目录下没有找到 .snap 文件"
+            ls -la dist/
+            exit 1
+          fi
+
+          echo "即将发布 snap 文件：$SNAP_FILE"
+
+          # 发布到 Snap Store
+          snapcraft upload --release=${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }} "$SNAP_FILE"
 
   build-mac:
     runs-on: macos-latest
