@@ -1,4 +1,4 @@
-name: Build
+name: Build (Manual)
 
 on:
   workflow_dispatch:
@@ -120,7 +120,8 @@ jobs:
             snapcraft: false
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -128,19 +129,24 @@ jobs:
         if: matrix.format == 'pacman'
         run: sudo apt-get update && sudo apt-get install -y libarchive-tools
 
-      - uses: actions/setup-node@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup bun ⚙️
+        uses: oven-sh/setup-bun@v2
 
-      - run: bun install --loglevel=info
+      - name: Install dependencies
+        run: bun install --loglevel=info
 
-      - env:
+      - name: Fetch
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
-      - run: bun run webpack:prod
+      - name: Compile
+        run: bun run webpack:prod
 
       # 只针对 snap arm64 加 QEMU（最小影响其他 job）
       - name: Set up QEMU (for snap arm64 emulation)
@@ -150,7 +156,8 @@ jobs:
           platforms: arm64
 
       # snap x64 保持原安装方式
-      - if: matrix.snapcraft && matrix.arch != 'arm64'
+      - name: Install snapcraft
+        if: matrix.snapcraft && matrix.arch != 'arm64'
         run: sudo snap install snapcraft --classic
 
       # snap arm64 用专用 action 构建 snap（内部容器 + emulation，最稳定）
@@ -162,9 +169,11 @@ jobs:
           architecture: arm64
 
       # 所有格式都跑 build.js（保持原逻辑，snap arm64 的 snapcraft 会被 action 接管）
-      - run: node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
+      - name: Package
+        run: node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -207,27 +216,35 @@ jobs:
           - target: legacy-11
             args: --mac-legacy-11 --universal
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup bun ⚙️
+        uses: oven-sh/setup-bun@v2
 
-      - run: bun install --loglevel=info
+      - name: Install dependencies
+        run: bun install --loglevel=info
 
-      - env:
+      - name: Fetch
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
-      - run: bun run webpack:prod
+      - name: Compile
+        run: bun run webpack:prod
 
-      - run: node release-automation/build.js ${{ matrix.args }}
+      - name: Package
+        run: node release-automation/build.js ${{ matrix.args }}
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
         with:
           name: mac-${{ matrix.target }}
           path: dist/*.dmg
@@ -260,40 +277,50 @@ jobs:
             args: --windows-portable --x64
             files: "*.exe"
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           path: repo
 
-      - run: |
+      - name: Move repository to D: drive
+        run: |
           Copy-Item -Path repo -Destination D:\repo -Recurse
           Remove-Item -Path repo -Recurse -Force
         shell: pwsh
 
-      - uses: actions/setup-node@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup bun ⚙️
+        uses: oven-sh/setup-bun@v2
 
-      - run: |
+      - name: Configure Bun cache and prefix to D: drive
+        run: |
           echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
           echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
 
-      - working-directory: D:\repo
+      - name: Install dependencies
+        working-directory: D:\repo
         run: bun install --loglevel=info
 
-      - working-directory: D:\repo
+      - name: Fetch
+        working-directory: D:\repo
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run fetch
 
-      - working-directory: D:\repo
+      - name: Compile
+        working-directory: D:\repo
         run: bun run webpack:prod
 
-      - working-directory: D:\repo
+      - name: Package
+        working-directory: D:\repo
         run: node release-automation/build.js ${{ matrix.args }}
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
         with:
           name: windows-${{ matrix.target }}
           path: D:\repo\dist\${{ matrix.files }}
