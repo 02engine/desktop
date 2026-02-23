@@ -9,6 +9,7 @@ jobs:
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       SNAPCRAFT_DESTRUCTIVE_MODE: 1
+      SNAPCRAFT_BUILD_ENVIRONMENT: host  # fallback/old name, sometimes still needed
     strategy:
       fail-fast: false
       matrix:
@@ -157,13 +158,8 @@ jobs:
       - name: Package
         run: |
           if [ "${{ matrix.snapcraft }}" = "true" ]; then
-            # 先打包成 unpacked 目录（electron-builder 会下载对应架构的 Electron）
-            node release-automation/build.js --linux dir --${{ matrix.arch }}
-            
-            # 手动调用 snapcraft，强制 destructive mode + 指定目标架构
-            snapcraft --destructive-mode --build-for=${{ matrix.arch }}
+            node release-automation/build.js --snap --${{ matrix.arch }}
           else
-            # 其他格式正常调用
             node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
           fi
 
@@ -173,7 +169,6 @@ jobs:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.pattern }}
 
-      # snap 文件查找
       - if: matrix.snapcraft
         id: find-snap
         run: |
@@ -181,7 +176,6 @@ jobs:
           [ -z "$SNAP_FILE" ] && exit 1
           echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
 
-      # publish
       - if: matrix.snapcraft && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
         uses: snapcore/action-publish@v1
         env:
