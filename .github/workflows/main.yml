@@ -47,9 +47,7 @@ jobs:
       - name: Generate generated-sources.json
         run: |
           # 推荐参数：--xdg-layout 符合 Flatpak 规范
-          flatpak-node-generator npm package-lock.json \
-            --xdg-layout \
-            -o generated-sources.json
+          flatpak-node-generator npm package-lock.json -o generated-sources.json
 
       # ─────────────── 上传生成的两个文件作为 artifact（供下载） ───────────────
       - name: Upload generated files
