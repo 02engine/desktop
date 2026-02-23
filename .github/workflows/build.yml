@@ -6,10 +6,6 @@ on:
 jobs:
   build-linux:
     runs-on: ${{ matrix.runner }}
-    env:
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      SNAPCRAFT_DESTRUCTIVE_MODE: 1
-      SNAPCRAFT_BUILD_ENVIRONMENT: host  # fallback/old name, sometimes still needed
     strategy:
       fail-fast: false
       matrix:
@@ -151,17 +147,45 @@ jobs:
       - name: Compile
         run: bun run webpack:prod
 
-      - name: Install snapcraft
-        if: matrix.snapcraft
+      - name: Install snapcraft (for local amd64 snap)
+        if: matrix.format == 'snap' && matrix.arch == 'x64'
         run: sudo snap install snapcraft --classic
 
-      - name: Package
+      - name: Package (all except arm64 snap)
+        if: matrix.format != 'snap' || matrix.arch == 'x64'
         run: |
-          if [ "${{ matrix.snapcraft }}" = "true" ]; then
+          if [ "${{ matrix.format }}" = "snap" ]; then
             node release-automation/build.js --snap --${{ matrix.arch }}
           else
             node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
           fi
+
+      # ── arm64 snap 使用 remote-build ───────────────────────────────
+      - name: Install snapcraft (for remote-build arm64)
+        if: matrix.format == 'snap' && matrix.arch == 'arm64'
+        run: sudo snap install snapcraft --classic
+
+      - name: Snapcraft remote-build for arm64 only
+        if: matrix.format == 'snap' && matrix.arch == 'arm64'
+        run: |
+          # 强烈建议加上 --launchpad-accept-public-upload 避免交互
+          # 如果你的 snapcraft.yaml 有多架构，remote-build 会默认构建所有；
+          # 若想强制只构建 arm64，可使用 --build-for=arm64
+          snapcraft remote-build --build-for=arm64 --launchpad-accept-public-upload || true
+
+          # remote-build 完成后，snap 文件通常出现在当前目录
+          # 常见命名： <snap-name>_<version>_arm64.snap
+          SNAP_FILE=$(find . -maxdepth 1 -type f -name "*_arm64.snap" | head -n 1)
+
+          if [ -z "$SNAP_FILE" ]; then
+            echo "Error: No arm64 snap file found after remote-build"
+            ls -la
+            exit 1
+          fi
+
+          mkdir -p dist
+          mv "$SNAP_FILE" dist/
+          echo "Generated snap: $SNAP_FILE"
 
       - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
@@ -169,19 +193,14 @@ jobs:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.pattern }}
 
-      - if: matrix.snapcraft
-        id: find-snap
-        run: |
-          SNAP_FILE=$(find dist -type f -name "*.snap" | head -n 1)
-          [ -z "$SNAP_FILE" ] && exit 1
-          echo "snap_file=$SNAP_FILE" >> $GITHUB_OUTPUT
-
-      - if: matrix.snapcraft && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
+      # ── snap 发布步骤（amd64 和 arm64 都会触发，可根据需要限制） ──
+      - name: Publish snap to Snap Store
+        if: matrix.format == 'snap' && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
         with:
-          snap: ${{ steps.find-snap.outputs.snap_file }}
+          snap: dist/*.snap
           release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}
 
   build-mac:
