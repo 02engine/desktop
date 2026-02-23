@@ -22,8 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'    # 或 'lts'，根据你的项目需求
-          cache: 'npm'          # 自动缓存 node_modules 和 package-lock
+          node-version: '20'  
 
       # ─────────────── 生成或更新 package-lock.json ───────────────
       - name: Generate / Update package-lock.json
@@ -34,8 +33,6 @@ jobs:
           # 安装依赖，生成 lockfile
           npm install --legacy-peer-deps --package-lock-only
           
-          # 或者如果你已经有 lockfile，只想更新：
-          # npm install --legacy-peer-deps
 
       # ─────────────── 安装 flatpak-node-generator ───────────────
       - name: Install flatpak-node-generator
