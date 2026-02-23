@@ -1,64 +1,76 @@
-name: Generate Bun Offline Cache Tarball
+name: Generate package-lock.json and Flatpak sources
 
 on:
-  workflow_dispatch:          # 手动触发（推荐先用这个测试）
+  workflow_dispatch:          # 允许手动触发（最常用）
   push:
-    branches: [main, master]  # 可选：push 时也自动跑
+    branches: [main, master]  # 或者你想自动触发的分支
   pull_request:
     branches: [main, master]
 
 jobs:
-  generate-cache:
-    runs-on: ubuntu-latest
+  generate-sources:
+    runs-on: ubuntu-latest      # 必须用 Linux runner，因为 flatpak-node-generator 是 Python 脚本
 
     steps:
+      # ─────────────── 检出代码 ───────────────
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # ─────────────── 安装 Bun ───────────────
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest     # 或指定版本如 1.1.13 / 1.3.8
+          fetch-depth: 0        # 如果需要完整历史
 
-      # ─────────────── 执行 bun install，生成全局缓存 ───────────────
-      - name: Run bun install to populate cache
+      # ─────────────── 设置 Node.js ───────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'    # 或 'lts'，根据你的项目需求
+          cache: 'npm'          # 自动缓存 node_modules 和 package-lock
+
+      # ─────────────── 生成或更新 package-lock.json ───────────────
+      - name: Generate / Update package-lock.json
         run: |
-          bun install --frozen-lockfile || bun install   # 如果 lockfile 不存在就 fallback
+          # 如果你想强制重新生成 lockfile（忽略旧的）
+          rm -f package-lock.json
+          
+          # 安装依赖，生成 lockfile
+          npm install --legacy-peer-deps --package-lock-only
+          
+          # 或者如果你已经有 lockfile，只想更新：
+          # npm install --legacy-peer-deps
 
-      # ─────────────── 打包缓存目录 ───────────────
-      - name: Prepare and tar Bun offline cache
+      # ─────────────── 安装 flatpak-node-generator ───────────────
+      - name: Install flatpak-node-generator
         run: |
-          mkdir -p bun-offline-cache
-          
-          # 复制 Bun 的全局缓存（通常所有 .tgz 文件都在这里）
-          if [ -d "$HOME/.bun/install/cache" ]; then
-            cp -r "$HOME/.bun/install/cache"/* bun-offline-cache/ 2>/dev/null || true
-          else
-            echo "Warning: Bun cache directory not found at $HOME/.bun/install/cache"
-          fi
-          
-          # 如果你只想要 .tgz 文件，可以加过滤：
-          # find "$HOME/.bun/install/cache" -name "*.tgz" -exec cp {} bun-offline-cache/ \;
-          
-          # 压缩成 tar.gz
-          tar -czf bun-cache.tar.gz bun-offline-cache
+          python -m pip install --user pipx
+          python -m pipx ensurepath
+          # 等待 PATH 更新（有时需要 source）
+          source ~/.profile || true
+          pipx install git+https://github.com/flatpak/flatpak-builder-tools.git#subdirectory=node
 
-      # ─────────────── 上传 tar.gz 作为 artifact（供下载） ───────────────
-      - name: Upload bun-cache.tar.gz artifact
+      # ─────────────── 运行 flatpak-node-generator 生成 sources ───────────────
+      - name: Generate generated-sources.json
+        run: |
+          # 推荐参数：--xdg-layout 符合 Flatpak 规范
+          flatpak-node-generator npm package-lock.json \
+            --xdg-layout \
+            -o generated-sources.json
+
+      # ─────────────── 上传生成的两个文件作为 artifact（供下载） ───────────────
+      - name: Upload generated files
         uses: actions/upload-artifact@v4
         with:
-          name: bun-offline-cache
-          path: bun-cache.tar.gz
-          if-no-files-found: warn          # 如果缓存为空也继续
-          retention-days: 30               # 保留 30 天，可调整
-          compression-level: 6             # 默认压缩
+          name: flatpak-sources
+          path: |
+            package-lock.json
+            generated-sources.json
+          if-no-files-found: error
+          retention-days: 14
 
-      # ─────────────── 显示结果信息（方便调试） ───────────────
-      - name: Show cache size and contents summary
+      # ─────────────── （可选）显示生成结果摘要 ───────────────
+      - name: Show summary
         run: |
-          echo "Generated file size:"
-          du -sh bun-cache.tar.gz || echo "File not created"
+          echo "package-lock.json size:"
+          ls -lh package-lock.json
           echo ""
-          echo "Top 10 files in cache (if any):"
-          tar -tzf bun-cache.tar.gz | head -n 10 || echo "No files in tar"
+          echo "generated-sources.json size & first few lines:"
+          ls -lh generated-sources.json
+          head -n 20 generated-sources.json || cat generated-sources.json
