@@ -8,7 +8,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      SNAPCRAFT_DESTRUCTIVE_MODE: 1  # 关键：启用 destructive mode，支持 amd64 runner 构建 arm64 snap
+      SNAPCRAFT_DESTRUCTIVE_MODE: 1
     strategy:
       fail-fast: false
       matrix:
@@ -99,6 +99,7 @@ jobs:
             runner: ubuntu-latest
             snapcraft: true
 
+          # armv7l
           - arch: armv7l
             format: debian
             artifact: linux-debian-armv7l
@@ -154,7 +155,17 @@ jobs:
         run: sudo snap install snapcraft --classic
 
       - name: Package
-        run: node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
+        run: |
+          if [ "${{ matrix.snapcraft }}" = "true" ]; then
+            # 先打包成 unpacked 目录（electron-builder 会下载对应架构的 Electron）
+            node release-automation/build.js --linux dir --${{ matrix.arch }}
+            
+            # 手动调用 snapcraft，强制 destructive mode + 指定目标架构
+            snapcraft --destructive-mode --build-for=${{ matrix.arch }}
+          else
+            # 其他格式正常调用
+            node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
+          fi
 
       - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
