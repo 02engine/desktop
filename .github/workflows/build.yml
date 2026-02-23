@@ -53,7 +53,7 @@ jobs:
             runner: ubuntu-latest
             snapcraft: true
 
-          # arm64
+          # arm64（删除 snap 条目，保留其他格式）
           - arch: arm64
             format: debian
             artifact: linux-debian-arm64
@@ -89,14 +89,7 @@ jobs:
             runner: ubuntu-latest
             snapcraft: false
 
-          - arch: arm64
-            format: snap
-            artifact: linux-snap-arm64
-            pattern: "*.snap"
-            runner: ubuntu-latest
-            snapcraft: true
-
-          # armv7l
+          # armv7l（无 snap 支持，无需改动）
           - arch: armv7l
             format: debian
             artifact: linux-debian-armv7l
@@ -147,12 +140,11 @@ jobs:
       - name: Compile
         run: bun run webpack:prod
 
-      - name: Install snapcraft (for local amd64 snap)
+      - name: Install snapcraft (only for x64 snap)
         if: matrix.format == 'snap' && matrix.arch == 'x64'
         run: sudo snap install snapcraft --classic
 
-      - name: Package (all except arm64 snap)
-        if: matrix.format != 'snap' || matrix.arch == 'x64'
+      - name: Package
         run: |
           if [ "${{ matrix.format }}" = "snap" ]; then
             node release-automation/build.js --snap --${{ matrix.arch }}
@@ -160,42 +152,15 @@ jobs:
             node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
           fi
 
-      # ── arm64 snap 使用 remote-build ───────────────────────────────
-      - name: Install snapcraft (for remote-build arm64)
-        if: matrix.format == 'snap' && matrix.arch == 'arm64'
-        run: sudo snap install snapcraft --classic
-
-      - name: Snapcraft remote-build for arm64 only
-        if: matrix.format == 'snap' && matrix.arch == 'arm64'
-        run: |
-          # 强烈建议加上 --launchpad-accept-public-upload 避免交互
-          # 如果你的 snapcraft.yaml 有多架构，remote-build 会默认构建所有；
-          # 若想强制只构建 arm64，可使用 --build-for=arm64
-          snapcraft remote-build --build-for=arm64 --launchpad-accept-public-upload || true
-
-          # remote-build 完成后，snap 文件通常出现在当前目录
-          # 常见命名： <snap-name>_<version>_arm64.snap
-          SNAP_FILE=$(find . -maxdepth 1 -type f -name "*_arm64.snap" | head -n 1)
-
-          if [ -z "$SNAP_FILE" ]; then
-            echo "Error: No arm64 snap file found after remote-build"
-            ls -la
-            exit 1
-          fi
-
-          mkdir -p dist
-          mv "$SNAP_FILE" dist/
-          echo "Generated snap: $SNAP_FILE"
-
       - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: dist/${{ matrix.pattern }}
 
-      # ── snap 发布步骤（amd64 和 arm64 都会触发，可根据需要限制） ──
+      # 只保留 amd64 (x64) 的 snap 发布，arm64 已移除
       - name: Publish snap to Snap Store
-        if: matrix.format == 'snap' && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
+        if: matrix.format == 'snap' && matrix.arch == 'x64' && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
