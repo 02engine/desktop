@@ -1,3 +1,9 @@
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
+[![Build (Manual)](https://github.com/02engine/desktop/actions/workflows/build.yml/badge.svg)](https://github.com/02engine/desktop/actions/workflows/build.yml)
+
 # 02Engine Desktop
 
 02Engine as a desktop app.Based on Turbowarp.
