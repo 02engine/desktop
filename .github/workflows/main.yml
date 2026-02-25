@@ -1,0 +1,68 @@
+name: Build Flatpak
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build-flatpak:
+    name: Build Flatpak (x86_64)
+    runs-on: ubuntu-24.04   # 推荐 24.04，支持较新 runtime
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive   # 如果有子模块
+
+      # ────────────────────────────────────────────────
+      # 使用官方 flatpak-github-actions（最简单、最推荐）
+      # ────────────────────────────────────────────────
+      - name: Build Flatpak with flatpak-builder
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          # 你的 manifest 文件路径（根据实际情况调整）
+          manifest-path: ./flatpak/io.github._02engine._02Engine.yml
+
+          # 输出 bundle 文件名（推荐带版本或 sha）
+          bundle: 02Engine-${{ github.sha || github.ref_name }}.flatpak
+
+          # 可选：缓存构建目录，第二次构建会快很多
+          cache-key: flatpak-builder-${{ hashFiles('**/package-lock.json', 'io.github._02engine._02Engine.yml') }}
+
+          # 是否上传构建出的 .flatpak 文件作为 artifact（默认 true）
+          upload-artifact: true
+
+          # 可选：额外参数传给 flatpak-builder
+          # builder-args: "--install-deps-from=flathub --user --force-clean"
+
+      # ────────────────────────────────────────────────
+      # 如果你想额外打包构建日志或失败时方便 debug
+      # ────────────────────────────────────────────────
+      - name: Upload build logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-build-logs
+          path: |
+            **/flatpak-builder-*.log
+            **/*.log
+          retention-days: 7
+
+      # ────────────────────────────────────────────────
+      # （可选）如果 push tag 了，自动创建 GitHub Release 并上传 .flatpak
+      # ────────────────────────────────────────────────
+      - name: Create Release & Upload bundle (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: 02Engine-*.flatpak
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') || contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
