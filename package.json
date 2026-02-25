@@ -79,10 +79,8 @@
       "!**/.github/**",
       "!**/.vscode/**",
       "!**/*.lock",
-      "!yarn.lock",
       "!pnpm-lock.yaml",
       "!bun.lockb",
-      "!scripts/**/*.test.*",
       "!art/**/*.source.*"
     ],
     "extraResources": [
