@@ -65,20 +65,7 @@
     "productName": "02Engine",
     "asar": false,
     "files": [
-      "node_modules/**/*",
-      "src-main/**/*",
-      "src-preload/**/*",
-      "src-renderer/**/*",
-      "dist-renderer-webpack/**/*",
-      "dist-library-files/**/*",
-      "dist-extensions/**/*",
-      "!**/*.tsbuildinfo",
-      "!**/*.map",
-      "!**/*.spec.*",
-      "!**/__tests__/**/*",
-      "!**/node_modules/.bin/**",
-      "!**/node_modules/**/*.md",
-      "!**/node_modules/**/*.txt"
+      "*"
     ],
     "extraResources": [
       {
