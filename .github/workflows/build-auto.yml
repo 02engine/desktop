@@ -7,6 +7,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 关键修改：在 Job 级别定义环境变量，对所有 steps 生效
+    env:
+      DEBUG: "electron-builder"
 
     steps:
     - uses: actions/checkout@v4
@@ -26,7 +29,6 @@ jobs:
       run: bun install --loglevel=info
 
     - name: Prepare extensions
-      # Don't need to do a full fetch, that would just cause a lot of unnecessary traffic
       run: node scripts/prepare-extensions.js
 
     - name: Compile
