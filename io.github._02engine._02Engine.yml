@@ -41,7 +41,7 @@ modules:
       - type: git
         url: https://github.com/02engine/desktop.git
         tag: v1.2.2
-        commit: 300ab696277302654edb82840ac1e6a146d1b4ec
+        commit: ec43534db176af3e9bced93babb48c9b4734609f
       - type: file
         url: https://raw.githubusercontent.com/02engine/desktop/main/art/icon.png
         dest-filename: icon.png
