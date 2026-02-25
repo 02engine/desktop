@@ -7,40 +7,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 关键修改：在 Job 级别定义环境变量，对所有 steps 生效
     env:
       DEBUG: "electron-builder"
-      DEBUG_PROD: "true"
-      ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: "true"
 
     steps:
-    - name: 📋 环境变量检查
-      run: |
-        echo "=== 环境变量 ==="
-        env | sort
-        echo "=== Node 版本 ==="
-        node --version
-        echo "=== Bun 版本 ==="
-        bun --version
-        echo "=== npm 版本 ==="
-        npm --version
-        echo "=== 当前目录 ==="
-        pwd
-        echo "=== 磁盘空间 ==="
-        df -h
-
     - uses: actions/checkout@v4
       with:
         submodules: recursive
         persist-credentials: false
-
-    - name: 📁 Checkout 后目录结构
-      run: |
-        echo "=== 根目录结构 ==="
-        ls -la
-        echo "=== src-main 目录 ==="
-        ls -la src-main/ 2>/dev/null || echo "⚠️ src-main 目录不存在"
-        echo "=== 检查 entrypoint.js ==="
-        find . -name "entrypoint.js" -o -name "entrypoint.ts" 2>/dev/null || echo "⚠️ 未找到入口文件"
 
     - name: Install Node.js
       uses: actions/setup-node@v4
@@ -50,95 +25,15 @@ jobs:
     - name: Setup bun ⚙️
       uses: oven-sh/setup-bun@v2
 
-    - name: 📦 安装依赖前检查
-      run: |
-        echo "=== package.json 内容 ==="
-        cat package.json
-        echo "=== package.json 中的 main 字段 ==="
-        node -e "console.log(JSON.parse(require('fs').readFileSync('package.json')).main)"
-
     - name: Install dependencies
-      run: |
-        echo "=== 开始安装依赖 ==="
-        bun install --loglevel=verbose
-        echo "=== 安装完成，检查 node_modules ==="
-        ls -la node_modules/ | head -20
-        echo "=== 依赖总数 ==="
-        ls node_modules/ | wc -l
+      run: bun install --loglevel=info
 
     - name: Prepare extensions
-      run: |
-        echo "=== 准备扩展 ==="
-        node scripts/prepare-extensions.js
-        echo "=== 扩展准备完成后的目录 ==="
-        ls -la dist-extensions/ 2>/dev/null || echo "⚠️ dist-extensions 目录不存在"
-
-    - name: 📝 Compile 前检查
-      run: |
-        echo "=== webpack 配置 ==="
-        cat webpack.config.js 2>/dev/null || echo "⚠️ 未找到 webpack.config.js"
-        echo "=== TypeScript 配置 ==="
-        cat tsconfig.json 2>/dev/null || echo "⚠️ 未找到 tsconfig.json"
+      run: node scripts/prepare-extensions.js
 
     - name: Compile
-      run: |
-        echo "=== 开始编译 ==="
-        npm run webpack:compile
-        echo "=== 编译完成，检查输出目录 ==="
-        echo "--- dist 目录 ---"
-        ls -la dist/ 2>/dev/null || echo "⚠️ dist 目录不存在"
-        echo "--- src-main 目录 ---"
-        ls -la src-main/ 2>/dev/null || echo "⚠️ src-main 目录不存在"
-        echo "--- 查找所有 .js 入口文件 ---"
-        find . -name "*.js" -path "*/src-main/*" 2>/dev/null || echo "⚠️ src-main 中无 JS 文件"
-
-    - name: 🔍 打包前最终检查
-      run: |
-        echo "=== 完整目录树 (前 100 行) ==="
-        find . -type f -name "*.js" | head -100
-        echo "=== 检查 package.json build 配置 ==="
-        node -e "console.log(JSON.stringify(JSON.parse(require('fs').readFileSync('package.json')).build, null, 2))"
-        echo "=== 确认入口文件路径 ==="
-        MAIN_FILE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json')).main)")
-        echo "入口文件配置为：$MAIN_FILE"
-        if [ -f "$MAIN_FILE" ]; then
-          echo "✅ 入口文件存在"
-          head -5 "$MAIN_FILE"
-        else
-          echo "❌ 入口文件不存在！"
-          echo "尝试查找类似文件:"
-          find . -name "entrypoint*" 2>/dev/null
-          find . -name "index*" -path "*/src-main/*" 2>/dev/null
-        fi
+      run: npm run webpack:compile
 
     - name: Package
-      run: |
-        echo "=== 开始打包 ==="
-        echo "=== 当前工作目录 ==="
-        pwd
-        echo "=== 打包命令 ==="
-        cat package.json | grep -A 5 '"scripts"'
-        echo "=== 执行打包 ==="
-        npm run electron:package:dir 2>&1 | tee package-log.txt
-        echo "=== 打包完成，检查输出 ==="
-        ls -la dist/ 2>/dev/null || echo "⚠️ dist 目录不存在"
-        ls -la dist/linux-unpacked/ 2>/dev/null || echo "⚠️ dist/linux-unpacked 目录不存在"
-        ls -la dist/linux-unpacked/resources/app/ 2>/dev/null || echo "⚠️ app 资源目录不存在"
+      run: npm run electron:package:dir
 
-    - name: 📊 上传构建日志
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-logs
-        path: |
-          package-log.txt
-          dist/**/*
-        retention-days: 14
-
-    - name: 📊 上传完整目录快照
-      if: failure()
-      run: |
-        echo "=== 构建失败，生成完整目录快照 ==="
-        find . -type f -name "*.json" | head -50 > file-list.txt
-        find . -type f -name "*.js" | head -100 >> file-list.txt
-        cat file-list.txt
