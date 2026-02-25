@@ -63,6 +63,7 @@
   "build": {
     "appId": "ZPTStudio.02Engine.desktop",
     "productName": "02Engine",
+    "asar": false,
     "files": [
       "node_modules/**/*",
       "src-main/**/*",
