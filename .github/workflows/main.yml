@@ -5,34 +5,34 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:  # 允许手动从 GitHub 界面触发
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build Flatpak (x86_64)
     runs-on: ubuntu-24.04
 
-    # 使用官方预构建容器（包含 flatpak-builder、runtimes 等，避免 not found 错误）
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
-      options: --privileged  # flatpak-builder 需要此权限运行 bwrap 等
+      options: --privileged
 
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          submodules: recursive  # 如果有 git 子模块
+          submodules: recursive
 
-      - name: 添加 Flathub 远程仓库
+      - name: 添加并更新 Flathub 远程仓库（user 级别）
         run: |
-          flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak update --user --assumeyes --noninteractive || true  # 更新远程元数据，忽略小错误
 
-      - name: 安装 Node.js 20 SDK 扩展（manifest 需要）
+      - name: 安装 Node.js 20 SDK 扩展（使用完整 ref 格式，避免 No remote refs）
         run: |
-          flatpak install --noninteractive --user \
-            org.freedesktop.Sdk.Extension.node20//24.08
+          flatpak install --user --assumeyes --noninteractive \
+            flathub org.freedesktop.Sdk.Extension.node20/x86_64/24.08
 
-      - name: 使用 flatpak-builder 构建应用
+      - name: 构建 Flatpak 应用
         run: |
           flatpak-builder \
             --user \
@@ -61,7 +61,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: 上传构建日志（仅失败时）
+      - name: 上传失败日志（仅在构建失败时）
         if: failure()
         uses: actions/upload-artifact@v4
         with:
