@@ -7,6 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 关键修改：在 Job 级别定义环境变量，对所有 steps 生效
     env:
       DEBUG: "electron-builder"
 
@@ -31,129 +32,8 @@ jobs:
       run: node scripts/prepare-extensions.js
 
     - name: Compile
-      run: npm run webpack:compile
+      run: sudo -E env "PATH=$PATH" bun run webpack:compile
 
-    # ========== 打包前诊断阶段 ==========
-    - name: 📋 打包前诊断 - 检查入口文件
-      run: |
-        echo "=== 检查 package.json main 字段 ==="
-        cat package.json | grep -A 2 '"main"'
-        
-        echo ""
-        echo "=== 查找所有 entrypoint 相关文件 ==="
-        find . -name "entrypoint*" -type f 2>/dev/null || echo "未找到 entrypoint 文件"
-        
-        echo ""
-        echo "=== 检查 src-main 目录内容 ==="
-        if [ -d "src-main" ]; then
-          ls -la src-main/
-          echo ""
-          echo "=== src-main 目录树状结构 ==="
-          find src-main -type f | head -50
-        else
-          echo "⚠️ src-main 目录不存在!"
-        fi
-        
-        echo ""
-        echo "=== 检查 dist 目录内容 ==="
-        if [ -d "dist" ]; then
-          ls -la dist/
-        else
-          echo "ℹ️ dist 目录尚未创建（正常）"
-        fi
+    - name: Package
+      run: sudo -E env "PATH=$PATH" bun run electron:package:dir
 
-    - name: 📋 打包前诊断 - 检查 electron-builder 配置
-      run: |
-        echo "=== package.json 中的 build 配置 ==="
-        cat package.json | jq '.build' 2>/dev/null || cat package.json | grep -A 200 '"build"'
-        
-        echo ""
-        echo "=== 当前工作目录 ==="
-        pwd
-        
-        echo ""
-        echo "=== 项目根目录文件列表 ==="
-        ls -la
-
-    # ========== 打包阶段（带详细日志）==========
-    - name: 📦 Package Electron (详细日志)
-      run: |
-        echo "=== 开始打包，时间: $(date) ==="
-        
-        echo ""
-        echo "=== 环境变量 ==="
-        env | grep -E "(DEBUG|ELECTRON|NODE)" || echo "无相关环境变量"
-        
-        echo ""
-        echo "=== npm 版本信息 ==="
-        npm --version
-        node --version
-        bun --version
-        
-        echo ""
-        echo "=== 执行 electron-builder 带详细日志 ==="
-        # 设置最高级别调试
-        export DEBUG=electron-builder:*
-        export ELECTRON_BUILDER_LOG_LEVEL=debug
-        
-        # 运行打包命令，捕获所有输出
-        npm run electron:package:dir 2>&1 | tee package.log
-        
-        echo ""
-        echo "=== 打包完成，时间: $(date) ==="
-
-    # ========== 打包后诊断阶段 ==========
-    - name: 📋 打包后诊断 - 检查输出目录
-      if: always()
-      run: |
-        echo "=== 检查 dist 目录结构 ==="
-        if [ -d "dist" ]; then
-          echo ""
-          echo "=== dist 目录内容 ==="
-          ls -la dist/
-          
-          echo ""
-          echo "=== linux-unpacked 目录内容 ==="
-          if [ -d "dist/linux-unpacked" ]; then
-            ls -la dist/linux-unpacked/
-            
-            echo ""
-            echo "=== resources/app 目录内容 ==="
-            if [ -d "dist/linux-unpacked/resources/app" ]; then
-              ls -la dist/linux-unpacked/resources/app/
-              
-              echo ""
-              echo "=== src-main 在打包后的内容 ==="
-              if [ -d "dist/linux-unpacked/resources/app/src-main" ]; then
-                ls -la dist/linux-unpacked/resources/app/src-main/
-              else
-                echo "⚠️ dist/linux-unpacked/resources/app/src-main 目录不存在!"
-              fi
-              
-              echo ""
-              echo "=== 查找所有 .js 入口文件 ==="
-              find dist/linux-unpacked/resources/app -name "*.js" -type f | head -30
-            else
-              echo "⚠️ resources/app 目录不存在!"
-            fi
-          else
-            echo "⚠️ dist/linux-unpacked 目录不存在!"
-          fi
-        else
-          echo "⚠️ dist 目录不存在!"
-        fi
-        
-        echo ""
-        echo "=== 完整目录树 (限制深度) ==="
-        find dist -type f 2>/dev/null | head -100 || echo "无法列出 dist 内容"
-
-    - name: 📄 上传打包日志
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: package-logs
-        path: |
-          package.log
-          dist/**/*
-        retention-days: 14
-        if-no-files-found: warn
