@@ -45,9 +45,11 @@ modules:
       - type: file
         url: https://raw.githubusercontent.com/02engine/desktop/main/art/icon.png
         dest-filename: icon.png
+        sha256: F18ADA96F6C02E9948AC8297E373089585A53C54D77ED77AFA26F671140DF7F8
       - type: file
         path: linux-files/org.turbowarp.TurboWarp.metainfo.xml
         dest-filename: metainfo.xml.template
+        sha256: 22860E838DD82B1EEFE2E0525B143CCFA3DCDE53C1F9205EC0C3D589297420FC
 
     build-commands:
       # Install dependencies using npm (bun may not be available in flatpak)
