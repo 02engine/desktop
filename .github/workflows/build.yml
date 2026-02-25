@@ -5,111 +5,44 @@ on:
 
 jobs:
   build-linux:
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           # x64
-          - arch: x64
-            format: debian
-            artifact: linux-debian-x64
-            pattern: "*.deb"
-            runner: ubuntu-latest
-            snapcraft: false
+          - name: debian-x64
+            arch: x64
+          - name: rpm-x64
+            arch: x64
+          - name: pacman-x64
+            arch: x64
+          - name: tarball-x64
+            arch: x64
+          - name: appimage-x64
+            arch: x64
+          - name: snap-x64
+            arch: x64
 
-          - arch: x64
-            format: rpm
-            artifact: linux-rpm-x64
-            pattern: "*.rpm"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: x64
-            format: pacman
-            artifact: linux-pacman-x64
-            pattern: "*.pkg.tar.zst"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: x64
-            format: tarball
-            artifact: linux-tarball-x64
-            pattern: "*.tar.gz"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: x64
-            format: appimage
-            artifact: linux-appimage-x64
-            pattern: "*.AppImage"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: x64
-            format: snap
-            artifact: linux-snap-x64
-            pattern: "*.snap"
-            runner: ubuntu-latest
-            snapcraft: true
-
-          # arm64（已移除 snap 支持）
-          - arch: arm64
-            format: debian
-            artifact: linux-debian-arm64
-            pattern: "*.deb"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: arm64
-            format: rpm
-            artifact: linux-rpm-arm64
-            pattern: "*.rpm"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: arm64
-            format: pacman
-            artifact: linux-pacman-arm64
-            pattern: "*.pkg.tar.zst"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: arm64
-            format: tarball
-            artifact: linux-tarball-arm64
-            pattern: "*.tar.gz"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: arm64
-            format: appimage
-            artifact: linux-appimage-arm64
-            pattern: "*.AppImage"
-            runner: ubuntu-latest
-            snapcraft: false
+          # arm64
+          - name: debian-arm64
+            arch: arm64
+          - name: rpm-arm64
+            arch: arm64
+          - name: pacman-arm64
+            arch: arm64
+          - name: tarball-arm64
+            arch: arm64
+          - name: appimage-arm64
+            arch: arm64
 
           # armv7l
-          - arch: armv7l
-            format: debian
-            artifact: linux-debian-armv7l
-            pattern: "*.deb"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: armv7l
-            format: tarball
-            artifact: linux-tarball-armv7l
-            pattern: "*.tar.gz"
-            runner: ubuntu-latest
-            snapcraft: false
-
-          - arch: armv7l
-            format: appimage
-            artifact: linux-appimage-armv7l
-            pattern: "*.AppImage"
-            runner: ubuntu-latest
-            snapcraft: false
+          - name: debian-armv7l
+            arch: armv7l
+          - name: tarball-armv7l
+            arch: armv7l
+          - name: appimage-armv7l
+            arch: armv7l
 
     steps:
       - name: Checkout
@@ -118,7 +51,7 @@ jobs:
           submodules: recursive
 
       - name: Install bsdtar for pacman target
-        if: matrix.format == 'pacman'
+        if: contains(matrix.name, 'pacman')
         run: sudo apt-get update && sudo apt-get install -y libarchive-tools
 
       - name: Install Node.js
@@ -126,7 +59,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup bun ⚙️
+      - name: Setup bun
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
@@ -140,42 +73,24 @@ jobs:
       - name: Compile
         run: bun run webpack:prod
 
-      - name: Install snapcraft (only for x64 snap)
-        if: matrix.format == 'snap'
+      - name: Install snapcraft (only for snap)
+        if: contains(matrix.name, 'snap')
         run: sudo snap install snapcraft --classic
 
       - name: Package
         run: |
-          if [ "${{ matrix.format }}" = "snap" ]; then
+          if [ "${{ matrix.name }}" = "snap-x64" ]; then
             node release-automation/build.js --snap --${{ matrix.arch }}
           else
-            node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }}
+            format=$(echo ${{ matrix.name }} | cut -d'-' -f1)
+            node release-automation/build.js --$format --${{ matrix.arch }}
           fi
 
       - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: dist/${{ matrix.pattern }}
-
-      - name: Publish snap to Snap Store
-        if: matrix.format == 'snap' && matrix.arch == 'x64' && (github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
-        env:
-          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
-        run: |
-          # 查找 dist 目录下的 .snap 文件（通常只有一个）
-          SNAP_FILE=$(ls -1 dist/*.snap 2>/dev/null | head -n 1)
-
-          if [ -z "$SNAP_FILE" ]; then
-            echo "错误：dist 目录下没有找到 .snap 文件"
-            ls -la dist/
-            exit 1
-          fi
-
-          echo "即将发布 snap 文件：$SNAP_FILE"
-
-          # 发布到 Snap Store
-          snapcraft upload --release=${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }} "$SNAP_FILE"
+          name: linux-${{ matrix.name }}
+          path: dist/*
 
   build-mac:
     runs-on: macos-latest
@@ -183,13 +98,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: modern
+          - name: modern
             args: --mac --universal
-          - target: legacy-10.13-10.14
+          - name: legacy-10.13-10.14
             args: --mac-legacy-10.13-10.14 --x64
-          - target: legacy-10.15
+          - name: legacy-10.15
             args: --mac-legacy-10.15 --x64
-          - target: legacy-11
+          - name: legacy-11
             args: --mac-legacy-11 --universal
     steps:
       - name: Checkout
@@ -202,7 +117,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup bun ⚙️
+      - name: Setup bun
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
@@ -222,7 +137,7 @@ jobs:
       - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: mac-${{ matrix.target }}
+          name: mac-${{ matrix.name }}
           path: dist/*.dmg
 
   build-windows:
@@ -231,25 +146,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: nsis-x64
+          - name: nsis-x64
             args: --windows --x64
             files: "*.exe"
-          - target: nsis-ia32
+          - name: nsis-ia32
             args: --windows --ia32
             files: "*.exe"
-          - target: nsis-arm64
+          - name: nsis-arm64
             args: --windows --arm64
             files: "*.exe"
-          - target: appx-x64
+          - name: appx-x64
             args: --microsoft-store --x64
             files: "*.appx"
-          - target: appx-ia32
+          - name: appx-ia32
             args: --microsoft-store --ia32
             files: "*.appx"
-          - target: appx-arm64
+          - name: appx-arm64
             args: --microsoft-store --arm64
             files: "*.appx"
-          - target: portable-x64
+          - name: portable-x64
             args: --windows-portable --x64
             files: "*.exe"
     steps:
@@ -269,7 +184,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Setup bun ⚙️
+      - name: Setup bun
         uses: oven-sh/setup-bun@v2
 
       - name: "Configure Bun cache and prefix to D: drive"
@@ -298,5 +213,5 @@ jobs:
       - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: windows-${{ matrix.target }}
+          name: windows-${{ matrix.name }}
           path: D:\repo\dist\${{ matrix.files }}
