@@ -42,6 +42,7 @@ jobs:
             --ccache \
             --default-branch=main \
             --arch=x86_64 \
+            --disable-rofiles-fuse \
             build-dir \
             io.github._02engine._02Engine.yml
 
