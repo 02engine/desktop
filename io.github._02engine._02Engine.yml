@@ -3,7 +3,7 @@ runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node24 
+  - org.freedesktop.Sdk.Extension.node24
 command: 02engine
 
 finish-args:
@@ -21,7 +21,7 @@ finish-args:
   - --share=network
 
 modules:
-  # 离线依赖模块（使用 Yarn 兼容的 generated-sources.json）
+  # 离线依赖模块（保持不变）
   - name: node-deps
     buildsystem: simple
     build-options:
@@ -32,17 +32,31 @@ modules:
         path: flatpak
         dest: flatpak-node
       - flatpak/generated-sources.json
-
     build-commands:
       - true
+
+  # 新增：Yarn Classic 预编译包模块（类似 Bun 的方式）
+  - name: yarn-prebuilt
+    buildsystem: simple
+    sources:
+      - type: archive
+        url: https://github.com/yarnpkg/yarn/releases/download/v1.22.22/yarn-v1.22.22.tar.gz
+        sha256: 88268464199d1611fcf73ce9c0a6c4d44c7d5363682720d8506f6508addf36a0
+    build-commands:
+      # 解压到 /app/yarn
+      - mkdir -p /app/yarn
+      - tar -xzf yarn-v1.22.22.tar.gz -C /app/yarn --strip-components=1
+      # 创建软链接，让 yarn 命令可用（/app/bin/yarn）
+      - ln -s /app/yarn/bin/yarn /app/bin/yarn
+      - ln -s /app/yarn/bin/yarnpkg /app/bin/yarnpkg
 
   # 主应用模块
   - name: 02Engine
     buildsystem: simple
     build-options:
-      append-path: /usr/lib/sdk/node20/bin   # 如果 node24，改成 /usr/lib/sdk/node24/bin
+      append-path: /app/bin:/usr/lib/sdk/node24/bin  
       env:
-        npm_config_nodedir: /usr/lib/sdk/node20
+        npm_config_nodedir: /usr/lib/sdk/node24
         npm_config_cache: /run/build/flatpak-node/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
@@ -58,16 +72,12 @@ modules:
         sha256: f18ada96f6c02e9948ac8297e373089585a53c54d77ed77afa26f671140df7f8
 
     build-commands:
-      # 安装 Yarn Classic 并启用
-      - corepack enable
-      - corepack prepare yarn@1.22.22 --activate
-
-      # Yarn 离线安装依赖（核心步骤）
+      # 使用预安装的 Yarn 进行离线安装依赖
       - yarn install --offline --prefer-offline --frozen-lockfile --ignore-scripts
 
-      # 执行后续脚本（用 yarn run）
+      # 后续脚本执行（用 yarn run）
       - yarn run fetch || true
-      - yarn run webpack:compiled
+      - yarn run webpack:prod
       - yarn run release-automation/build.js --linux-dir --x64
 
       # 复制 unpacked 目录
