@@ -30,8 +30,16 @@ modules:
         url: https://github.com/oven-sh/bun/releases/download/bun-v1.1.38/bun-linux-x64.zip
         sha256: a61da5357e28d4977fccd4851fed62ff4da3ea33853005c7dd93dac80bc53932
     build-commands:
-      - install -Dm755 bun-linux-x64/bun /usr/bin/bun
-      - install -Dm755 bun-linux-x64/bun /usr/bin/bunx
+      # 调试：查看实际目录结构
+      - pwd
+      - ls -laR
+      - find . -name "bun" -type f
+      
+      # 查找并安装 bun (无论它在哪个子目录)
+      - BUN_PATH=$(find . -name "bun" -type f | head -1)
+      - echo "Found bun at: $BUN_PATH"
+      - install -Dm755 "$BUN_PATH" /usr/bin/bun
+      - install -Dm755 "$BUN_PATH" /usr/bin/bunx
 
   # 02Engine Application
   - name: 02Engine
