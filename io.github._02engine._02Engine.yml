@@ -56,7 +56,7 @@ modules:
       - type: file
         path: flatpak/.bunfig.toml
         dest-filename: .bunfig.toml
-        sha256: 22860e838dd82b1eefe2e0525b143ccfa3dcde53c1f9205ec0c3d589297420fc        
+        sha256: 6cabee14f1568a83b7c1859b3ce910755bb79dd455fa3a6436c71bf18f738846        
 
     build-commands:
       # Install dependencies using bun
@@ -150,4 +150,5 @@ modules:
 
       # Create symlink for command
       - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
+
 
