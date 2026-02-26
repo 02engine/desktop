@@ -22,19 +22,18 @@ finish-args:
   - --share=network
 
 modules:
-  # Node.js 20 from the SDK extension
-  - name: nodejs
+  # Bun runtime
+  - name: bun
     buildsystem: simple
-    build-options:
-      append-path: /usr/lib/sdk/node20
     build-commands:
-      - echo "Node.js provided by SDK extension"
+      - curl -fsSL https://bun.sh/install | bash -s -- -b /usr/bin
+      - chmod +x /usr/bin/bun
 
   # 02Engine Application
   - name: 02Engine
     buildsystem: simple
     build-options:
-      append-path: /usr/lib/sdk/node20/bin
+      append-path: /usr/lib/sdk/node20/bin:/usr/bin
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
     sources:
@@ -52,17 +51,17 @@ modules:
         sha256: 22860e838dd82b1eefe2e0525b143ccfa3dcde53c1f9205ec0c3d589297420fc
 
     build-commands:
-      # Install dependencies using npm (bun may not be available in flatpak)
-      - npm install --legacy-peer-deps
+      # Install dependencies using bun
+      - bun install
 
       # Download required resources
-      - npm run fetch
+      - bun run fetch
 
       # Build the webpack bundles
-      - npm run webpack:prod
+      - bun run webpack:compile
 
       # Build the Electron app for Linux (unpacked directory mode)
-      - node release-automation/build.js --linux-dir --x64
+      - bun run release-automation/build.js --linux-dir --x64
 
       # Create installation directories
       - install -Dm755 dist/linux-unpacked/02Engine /app/bin/02engine
