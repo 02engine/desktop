@@ -51,8 +51,9 @@ modules:
 
       # 2. 解压 tar.gz → tar → 解压到 /app/yarn
       # 因为有两层 tar，所以先解压外层 tar.gz 得到 .tar，再解压 .tar
-      - tar -xzf yarn-v1.22.22.tar.gz -C /tmp
-      - tar -xf /tmp/yarn-v1.22.22.tar -C /app/yarn --strip-components=1
+      # 添加 --no-same-owner 避免所有权问题
+      - tar --no-same-owner -xzf yarn-v1.22.22.tar.gz -C /tmp
+      - tar --no-same-owner -xf /tmp/yarn-v1.22.22.tar -C /app/yarn --strip-components=1
       - rm -rf /tmp/yarn-v1.22.22.tar*   # 清理临时文件
 
       # 3. 创建软链接，让 yarn 命令全局可用
@@ -137,7 +138,7 @@ modules:
           <developer id="io.github._02engine">
             <name>02Studio</name>
           </developer>
-          <summary>Better Scratch. Based on Turbowarp.</summary>
+          <summary>Better Scratch. Based on TurboWarp.</summary>
           <description>
             <p>02Engine is a Scratch mod based on TurboWarp with enhanced features for designing and animating.</p>
             <p>Features:</p>
