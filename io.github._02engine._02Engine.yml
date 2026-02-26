@@ -3,7 +3,7 @@ runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node24
+  - org.freedesktop.Sdk.Extension.node24 
 command: 02engine
 
 finish-args:
@@ -21,42 +21,32 @@ finish-args:
   - --share=network
 
 modules:
-  # Bun 运行时
-  - name: bun
-    buildsystem: simple
-    sources:
-      - type: archive
-        url: https://github.com/oven-sh/bun/releases/download/bun-v1.1.38/bun-linux-x64.zip
-        sha256: a61da5357e28d4977fccd4851fed62ff4da3ea33853005c7dd93dac80bc53932
-    build-commands:
-      - install -Dm755 bun /app/bin/bun
-      - install -Dm755 bun /app/bin/bunx
-
-  # 新增：离线 npm 依赖模块（使用 generated-sources.json）
+  # 离线依赖模块（使用 Yarn 兼容的 generated-sources.json）
   - name: node-deps
     buildsystem: simple
     build-options:
       env:
-        XDG_CACHE_HOME: /run/build/flatpak-node/cache  # generator 默认使用这个布局
+        XDG_CACHE_HOME: /run/build/flatpak-node/cache
     sources:
       - type: dir
-        path: flatpak  # 假设 generated-sources.json 在 flatpak/ 目录下
+        path: flatpak
         dest: flatpak-node
-      - flatpak/generated-sources.json  # ← 关键：这里引用你的文件（相对路径）
+      - flatpak/generated-sources.json
 
     build-commands:
-      - true  # 无需额外命令，flatpak-builder 会自动处理 sources 中的 archive
+      - true
 
-  # 02Engine 应用（已支持离线）
+  # 主应用模块
   - name: 02Engine
     buildsystem: simple
     build-options:
-      append-path: /app/bin:/usr/lib/sdk/node20/bin
+      append-path: /usr/lib/sdk/node20/bin   # 如果 node24，改成 /usr/lib/sdk/node24/bin
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
-        npm_config_cache: /run/build/flatpak-node/npm-cache  # ← 指向 node-deps 解压的缓存
-        npm_config_offline: 'true'  # ← 强制离线
-        # 如果 Bun 不认 npm_config，可加 ELECTRON_CACHE: /run/build/flatpak-node/electron-cache 等
+        npm_config_cache: /run/build/flatpak-node/npm-cache
+        npm_config_offline: 'true'
+        ELECTRON_ENABLE_LOGGING: '1'
+
     sources:
       - type: git
         url: https://github.com/02engine/desktop.git
@@ -68,26 +58,26 @@ modules:
         sha256: f18ada96f6c02e9948ac8297e373089585a53c54d77ed77afa26f671140df7f8
 
     build-commands:
-      # 1. 离线安装依赖（优先用 Bun，fallback npm）
-      - bun install --prefer-offline --frozen-lockfile || npm install --offline --no-audit --no-fund
+      # 安装 Yarn Classic 并启用
+      - corepack enable
+      - corepack prepare yarn@1.22.22 --activate
 
-      # 2. 下载资源（如果 fetch 命令不联网，可跳过或确保已预处理）
-      - bun run fetch || true
+      # Yarn 离线安装依赖（核心步骤）
+      - yarn install --offline --prefer-offline --frozen-lockfile --ignore-scripts
 
-      # 3. Webpack 构建
-      - bun run webpack:prod
+      # 执行后续脚本（用 yarn run）
+      - yarn run fetch || true
+      - yarn run webpack:compiled
+      - yarn run release-automation/build.js --linux-dir --x64
 
-      # 4. 生成 unpacked 目录
-      - bun run release-automation/build.js --linux-dir --x64
-
-      # 5. 完整复制 unpacked 到 /app/main
+      # 复制 unpacked 目录
       - mkdir -p /app/main
       - cp -a dist/linux-unpacked/* /app/main/
 
-      # 6. 图标
+      # 图标
       - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
 
-      # 7. wrapper 脚本
+      # wrapper 脚本
       - |
         cat > /app/bin/02engine << 'EOF'
         #!/usr/bin/env bash
@@ -96,7 +86,7 @@ modules:
         EOF
       - chmod +x /app/bin/02engine
 
-      # 8. desktop 文件
+      # desktop 文件
       - |
         cat > /app/share/applications/io.github._02engine._02Engine.desktop << 'EOF'
         [Desktop Entry]
@@ -112,7 +102,7 @@ modules:
         Keywords=scratch;programming;animation;
         EOF
 
-      # 9. metainfo
+      # metainfo
       - |
         cat > /app/share/metainfo/io.github._02engine._02Engine.metainfo.xml << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
@@ -168,6 +158,4 @@ modules:
         </component>
         EOF
 
-      # 10. 命令别名
       - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
-
