@@ -3,7 +3,7 @@ runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node20
+  - org.freedesktop.Sdk.Extension.node24
 command: 02engine
 
 finish-args:
@@ -170,3 +170,4 @@ modules:
 
       # 10. 命令别名
       - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
+
