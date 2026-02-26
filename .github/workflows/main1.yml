@@ -1,58 +1,76 @@
-name: Bun Install + Cache Artifact
+name: Generate Flatpak Node Sources (generated-sources.json)
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:  # 支持手动触发（推荐用于生成 sources）
 
 jobs:
-  build:
-    runs-on: ubuntu-latest   # 或 ubuntu-24.04，如果你需要更新的系统
+  generate-sources:
+    runs-on: ubuntu-24.04   # 推荐较新版本，确保 pipx 和工具可用
 
     steps:
-      # 1. 检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # 2. 安装 Bun（使用官方 action，推荐）
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest   # 或指定版本如 "1.1.38"
+          fetch-depth: 0   # 需要完整历史记录来处理 git deps（如果有）
 
-      # 3. 缓存 Bun 全局包缓存（最重要一步，极大加速 bun install）
-      - name: Cache Bun global install cache
-        uses: actions/cache@v4
-        id: bun-cache
+      - name: Setup Node.js (for npm and flatpak-node-generator deps)
+        uses: actions/setup-node@v4
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-cache-${{ hashFiles('**/bun.lockb', '**/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-cache-
+          node-version: '20'   # 或你的项目所需版本，如 20 或 22
 
-      # 4. 执行 bun install（会优先使用缓存）
-      - name: Install dependencies with Bun
-        run: bun install
-
-      # 6. 把 Bun 全局缓存打包成 artifact 并提供下载
-      - name: Package Bun cache as artifact
-        if: always()   # 即使失败也打包，方便 debug
+      - name: Install flatpak-node-generator via pipx
         run: |
-          mkdir -p artifact-cache
-          if [ -d ~/.bun/install/cache ]; then
-            cp -r ~/.bun/install/cache artifact-cache/bun-install-cache
-            echo "Bun cache packaged"
-          else
-            echo "No Bun cache found"
-          fi
+          python3 -m pip install --user pipx
+          python3 -m pipx ensurepath
+          pipx install flatpak-node-generator
+          # 确保在 PATH 中（pipx 默认加到 ~/.local/bin）
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Upload Bun cache artifact
-        if: always()
+      - name: Generate or update package-lock.json (without installing node_modules)
+        run: npm install --package-lock-only --ignore-scripts
+
+      # 重要：确保运行前没有 node_modules（避免 flatpak-node-generator 误判为 local sources）
+      - name: Remove node_modules if exists (safety)
+        run: rm -rf node_modules || true
+
+      - name: Generate generated-sources.json using flatpak-node-generator
+        run: |
+          flatpak-node-generator npm package-lock.json \
+            --output generated-sources.json \
+            --xdg-layout   # 推荐使用 XDG 布局，更符合现代 Flatpak 规范
+
+      - name: Upload generated-sources.json as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bun-global-cache
-          path: artifact-cache/bun-install-cache
+          name: flatpak-sources
+          path: generated-sources.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload related files (for easy merging to manifest)
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-related-files
+          path: |
+            package-lock.json
+            package.json
+            # 如果你的 manifest 在 flatpak/ 目录下，可加：
+            # flatpak/*.yml
+            # flatpak/*.yaml
           if-no-files-found: warn
-          retention-days: 7   # 可调整，7天后自动删除
+          retention-days: 7
+
+      # 可选：如果生成失败，上传日志方便 debug
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generation-logs
+          path: |
+            **/*.log
+            npm-debug.log
+          retention-days: 3
