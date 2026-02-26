@@ -30,14 +30,14 @@ modules:
         url: https://github.com/oven-sh/bun/releases/download/bun-v1.1.38/bun-linux-x64.zip
         sha256: a61da5357e28d4977fccd4851fed62ff4da3ea33853005c7dd93dac80bc53932
     build-commands:
-      - install -Dm755 ./bun /usr/bin/bun
-      - install -Dm755 ./bun /usr/bin/bunx
+      - install -Dm755 ./bun /app/bin/bun
+      - install -Dm755 ./bun /app/bin/bunx
 
   # 02Engine Application
   - name: 02Engine
     buildsystem: simple
     build-options:
-      append-path: /usr/lib/sdk/node20/bin:/usr/bin
+      append-path: /usr/lib/sdk/node20/bin:/app/bin
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
     sources:
