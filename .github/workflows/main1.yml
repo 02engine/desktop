@@ -31,7 +31,7 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Generate or update package-lock.json (without installing node_modules)
-        run: npm install --package-lock-only --ignore-scripts
+        run: npm install --package-lock-only --ignore-scripts --lockfile-version=1
 
       # 重要：确保运行前没有 node_modules（避免 flatpak-node-generator 误判为 local sources）
       - name: Remove node_modules if exists (safety)
