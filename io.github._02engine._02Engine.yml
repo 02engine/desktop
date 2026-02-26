@@ -29,10 +29,9 @@ modules:
       - type: archive
         url: https://github.com/oven-sh/bun/releases/download/bun-v1.1.38/bun-linux-x64.zip
         sha256: a61da5357e28d4977fccd4851fed62ff4da3ea33853005c7dd93dac80bc53932
-        dest: bun-dist
     build-commands:
-      - install -Dm755 bun-dist/bun-linux-x64/bun /usr/bin/bun
-      - install -Dm755 bun-dist/bun-linux-x64/bun /usr/bin/bunx
+      - install -Dm755 bun-linux-x64/bun /usr/bin/bun
+      - install -Dm755 bun-linux-x64/bun /usr/bin/bunx
 
   # 02Engine Application
   - name: 02Engine
