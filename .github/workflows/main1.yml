@@ -1,4 +1,4 @@
-name: Generate Flatpak Node Sources (generated-sources.json)
+name: Generate Flatpak Node Sources (Yarn-compatible)
 
 on:
   push:
@@ -22,6 +22,15 @@ jobs:
         with:
           node-version: '20'
 
+      # ────────────────────────────────────────────────────────────────
+      # 安装 Yarn Classic (1.x) 并启用 corepack（推荐固定版本避免不兼容）
+      # ────────────────────────────────────────────────────────────────
+      - name: Setup Yarn Classic
+        run: |
+          corepack enable yarn
+          corepack prepare yarn@1.22.22 --activate   # 固定 Yarn 1.x 稳定版
+          yarn --version   # 验证是 1.x
+
       - name: Install flatpak-node-generator via pipx
         run: |
           python3 -m pip install --user pipx
@@ -29,52 +38,49 @@ jobs:
           pipx install flatpak-node-generator
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Generate or update package-lock.json (v1 format)
-        run: npm install --package-lock-only --ignore-scripts --lockfile-version=1
-
       # ────────────────────────────────────────────────────────────────
-      # 关键步骤：将 lockfile 中的所有 git+ssh 替换为 https
+      # 生成 yarn.lock（Yarn 的 lockfile）
       # ────────────────────────────────────────────────────────────────
-      - name: Convert git+ssh to https in package-lock.json
+      - name: Generate or update yarn.lock
         run: |
-          # 备份原始文件
-          cp package-lock.json package-lock.json.bak
+          # 如果项目已有 package-lock.json，先删除避免冲突
+          rm -f package-lock.json
+          # 用 Yarn 生成 lockfile（不安装 node_modules）
+          yarn install --mode=skip-build --frozen-lockfile || true
+          # 如果项目有 git deps，确保协议是 https（Yarn 默认支持）
+          # 可选：如果 lockfile 仍有 ssh，可加 sed 替换
+          sed -i 's|git+ssh://git@github.com/|https://github.com/|g' yarn.lock || true
+          sed -i 's|git@github.com:|https://github.com/|g' yarn.lock || true
 
-          # 替换 git+ssh://git@github.com/... → https://github.com/...
-          sed -i 's|git+ssh://git@github.com/|https://github.com/|g' package-lock.json
-
-          # 替换 git@github.com:... → https://github.com/...
-          sed -i 's|git@github.com:|https://github.com/|g' package-lock.json
-
-          # 可选：移除 resolved 中的 ssh 部分（如果还有残留）
-          sed -i 's|^.*"resolved": "git+ssh://.*$|  "resolved": "https://github.com${BASH_REMATCH[1]}",|g' package-lock.json || true
-
-          # 显示变更（方便 debug）
-          echo "Changes made to package-lock.json:"
-          git diff --color=always package-lock.json.bak package-lock.json || true
+      # 显示 yarn.lock 变更（debug）
+      - name: Show yarn.lock changes
+        run: git diff yarn.lock || true
 
       - name: Remove node_modules (safety)
         run: rm -rf node_modules || true
 
-      - name: Generate generated-sources.json
+      # ────────────────────────────────────────────────────────────────
+      # 使用 flatpak-node-generator 生成 Yarn 专属 sources
+      # ────────────────────────────────────────────────────────────────
+      - name: Generate generated-sources.json (Yarn mode)
         run: |
-          flatpak-node-generator npm package-lock.json \
+          flatpak-node-generator yarn yarn.lock \
             --output generated-sources.json
 
       - name: Upload generated-sources.json
         uses: actions/upload-artifact@v4
         with:
-          name: flatpak-sources
+          name: flatpak-sources-yarn
           path: generated-sources.json
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload modified package-lock.json and related files
+      - name: Upload Yarn lockfile and related files
         uses: actions/upload-artifact@v4
         with:
-          name: flatpak-related-files
+          name: flatpak-related-files-yarn
           path: |
-            package-lock.json
+            yarn.lock
             package.json
             generated-sources.json
           if-no-files-found: warn
@@ -86,7 +92,7 @@ jobs:
         with:
           name: failure-logs-and-backup
           path: |
-            package-lock.json.bak
+            yarn.lock.bak
             npm-debug.log
             **/*.log
           retention-days: 3
