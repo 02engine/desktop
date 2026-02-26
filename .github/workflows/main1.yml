@@ -22,14 +22,12 @@ jobs:
         with:
           node-version: '20'
 
-      # ────────────────────────────────────────────────────────────────
-      # 安装 Yarn Classic (1.x) 并启用 corepack（推荐固定版本避免不兼容）
-      # ────────────────────────────────────────────────────────────────
-      - name: Setup Yarn Classic
+      # 启用 Corepack 并固定 Yarn Classic 1.x
+      - name: Setup Yarn Classic (1.x)
         run: |
-          corepack enable yarn
-          corepack prepare yarn@1.22.22 --activate   # 固定 Yarn 1.x 稳定版
-          yarn --version   # 验证是 1.x
+          corepack enable
+          corepack prepare yarn@1.22.22 --activate
+          yarn --version  # 应该输出 1.22.22
 
       - name: Install flatpak-node-generator via pipx
         run: |
@@ -38,34 +36,39 @@ jobs:
           pipx install flatpak-node-generator
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      # ────────────────────────────────────────────────────────────────
-      # 生成 yarn.lock（Yarn 的 lockfile）
-      # ────────────────────────────────────────────────────────────────
+      # 生成/更新 yarn.lock（只更新 lockfile，不安装依赖）
       - name: Generate or update yarn.lock
         run: |
-          # 如果项目已有 package-lock.json，先删除避免冲突
-          rm -f package-lock.json
-          # 用 Yarn 生成 lockfile（不安装 node_modules）
-          yarn install --mode=skip-build --frozen-lockfile || true
-          # 如果项目有 git deps，确保协议是 https（Yarn 默认支持）
-          # 可选：如果 lockfile 仍有 ssh，可加 sed 替换
-          sed -i 's|git+ssh://git@github.com/|https://github.com/|g' yarn.lock || true
-          sed -i 's|git@github.com:|https://github.com/|g' yarn.lock || true
+          # 清理可能存在的冲突 lockfile
+          rm -f package-lock.json bun.lockb
 
-      # 显示 yarn.lock 变更（debug）
-      - name: Show yarn.lock changes
-        run: git diff yarn.lock || true
+          # 使用 --mode=update-lockfile 只生成/更新 yarn.lock
+          yarn install --mode=update-lockfile --frozen-lockfile || yarn install --mode=update-lockfile
+
+          # 强制替换 git+ssh 为 https（防止后续 flatpak-builder SSH 失败）
+          if [ -f yarn.lock ]; then
+            sed -i 's|git+ssh://git@github.com/|https://github.com/|g' yarn.lock || true
+            sed -i 's|git@github.com:|https://github.com/|g' yarn.lock || true
+            echo "yarn.lock after protocol replacement:"
+            head -n 50 yarn.lock
+          else
+            echo "yarn.lock was not generated!"
+            exit 1
+          fi
 
       - name: Remove node_modules (safety)
         run: rm -rf node_modules || true
 
-      # ────────────────────────────────────────────────────────────────
-      # 使用 flatpak-node-generator 生成 Yarn 专属 sources
-      # ────────────────────────────────────────────────────────────────
+      # 生成 Yarn 专属 generated-sources.json
       - name: Generate generated-sources.json (Yarn mode)
         run: |
-          flatpak-node-generator yarn yarn.lock \
-            --output generated-sources.json
+          if [ -f yarn.lock ]; then
+            flatpak-node-generator yarn yarn.lock \
+              --output generated-sources.json
+          else
+            echo "yarn.lock missing, skipping generation"
+            exit 1
+          fi
 
       - name: Upload generated-sources.json
         uses: actions/upload-artifact@v4
@@ -78,7 +81,7 @@ jobs:
       - name: Upload Yarn lockfile and related files
         uses: actions/upload-artifact@v4
         with:
-          name: flatpak-related-files-yarn
+          name: flatpak-yarn-files
           path: |
             yarn.lock
             package.json
@@ -86,13 +89,14 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Upload logs & backup on failure
+      - name: Upload failure logs and backups
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: failure-logs-and-backup
           path: |
-            yarn.lock.bak
-            npm-debug.log
+            yarn.lock
+            package-lock.json.bak
             **/*.log
+            npm-debug.log
           retention-days: 3
