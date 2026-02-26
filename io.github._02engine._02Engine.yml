@@ -3,7 +3,7 @@ runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node24
+  - org.freedesktop.Sdk.Extension.node20   # 可改成 node24 如果需要更高版本
 command: 02engine
 
 finish-args:
@@ -21,7 +21,7 @@ finish-args:
   - --share=network
 
 modules:
-  # 离线依赖模块（保持不变）
+  # 离线依赖模块（使用 Yarn 兼容的 generated-sources.json）
   - name: node-deps
     buildsystem: simple
     build-options:
@@ -35,28 +35,40 @@ modules:
     build-commands:
       - true
 
-  # 新增：Yarn Classic 预编译包模块（类似 Bun 的方式）
+  # Yarn Classic 预编译包模块（下载 + 解压方式，和 Bun 完全一致）
   - name: yarn-prebuilt
     buildsystem: simple
     sources:
-      - type: archive
-        url: https://github.com/yarnpkg/yarn/releases/download/v1.22.22/yarn-v1.22.22.tar.gz
+      # 使用本地文件方式（仓库里的相对路径）
+      - type: file
+        path: flatpak/yarn-v1.22.22.tar.gz
+        dest-filename: yarn-v1.22.22.tar.gz
         sha256: 88268464199d1611fcf73ce9c0a6c4d44c7d5363682720d8506f6508addf36a0
+
     build-commands:
-      # 解压到 /app/yarn
+      # 1. 创建目标目录
       - mkdir -p /app/yarn
-      - tar -xzf yarn-v1.22.22.tar.gz -C /app/yarn --strip-components=1
-      # 创建软链接，让 yarn 命令可用（/app/bin/yarn）
+
+      # 2. 解压 tar.gz → tar → 解压到 /app/yarn
+      # 因为有两层 tar，所以先解压外层 tar.gz 得到 .tar，再解压 .tar
+      - tar -xzf yarn-v1.22.22.tar.gz -C /tmp
+      - tar -xf /tmp/yarn-v1.22.22.tar -C /app/yarn --strip-components=1
+      - rm -rf /tmp/yarn-v1.22.22.tar*   # 清理临时文件
+
+      # 3. 创建软链接，让 yarn 命令全局可用
       - ln -s /app/yarn/bin/yarn /app/bin/yarn
       - ln -s /app/yarn/bin/yarnpkg /app/bin/yarnpkg
+
+      # 4. 验证（可选，方便 debug）
+      - yarn --version || echo "Yarn not found after install"
 
   # 主应用模块
   - name: 02Engine
     buildsystem: simple
     build-options:
-      append-path: /app/bin:/usr/lib/sdk/node24/bin  
+      append-path: /app/bin:/usr/lib/sdk/node20/bin   # 包含 /app/bin 以使用 yarn
       env:
-        npm_config_nodedir: /usr/lib/sdk/node24
+        npm_config_nodedir: /usr/lib/sdk/node20
         npm_config_cache: /run/build/flatpak-node/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
@@ -75,7 +87,7 @@ modules:
       # 使用预安装的 Yarn 进行离线安装依赖
       - yarn install --offline --prefer-offline --frozen-lockfile --ignore-scripts
 
-      # 后续脚本执行（用 yarn run）
+      # 后续脚本用 yarn run 执行
       - yarn run fetch || true
       - yarn run webpack:prod
       - yarn run release-automation/build.js --linux-dir --x64
@@ -84,7 +96,7 @@ modules:
       - mkdir -p /app/main
       - cp -a dist/linux-unpacked/* /app/main/
 
-      # 图标
+      # 安装图标
       - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
 
       # wrapper 脚本
