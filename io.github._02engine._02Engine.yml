@@ -25,9 +25,14 @@ modules:
   # Bun runtime
   - name: bun
     buildsystem: simple
+    sources:
+      - type: archive
+        url: https://github.com/oven-sh/bun/releases/download/bun-v1.1.38/bun-linux-x64.zip
+        sha256: a61da5357e28d4977fccd4851fed62ff4da3ea33853005c7dd93dac80bc53932
+        dest: bun-dist
     build-commands:
-      - curl -fsSL https://bun.sh/install | bash -s -- -b /usr/bin
-      - chmod +x /usr/bin/bun
+      - install -Dm755 bun-dist/bun-linux-x64/bun /usr/bin/bun
+      - install -Dm755 bun-dist/bun-linux-x64/bun /usr/bin/bunx
 
   # 02Engine Application
   - name: 02Engine
@@ -58,7 +63,7 @@ modules:
       - bun run fetch
 
       # Build the webpack bundles
-      - bun run webpack:compile
+      - bun run webpack:prod
 
       # Build the Electron app for Linux (unpacked directory mode)
       - bun run release-automation/build.js --linux-dir --x64
