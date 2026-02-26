@@ -13,8 +13,7 @@ finish-args:
   - --socket=pulseaudio
   - --socket=alsa
   - --device=dri
-  - --filesystem=home:ro
-  - --filesystem=xdg-download
+  - --filesystem=xdg-download      # 建议只保留需要的 xdg 目录，home:ro 审核较严
   - --filesystem=xdg-documents:ro
   - --filesystem=xdg-pictures:ro
   - --filesystem=xdg-music:ro
@@ -22,7 +21,7 @@ finish-args:
   - --share=network
 
 modules:
-  # Bun runtime
+  # Bun 运行时（保持原样，但路径调整为 /app/bin）
   - name: bun
     buildsystem: simple
     sources:
@@ -30,53 +29,57 @@ modules:
         url: https://github.com/oven-sh/bun/releases/download/bun-v1.1.38/bun-linux-x64.zip
         sha256: a61da5357e28d4977fccd4851fed62ff4da3ea33853005c7dd93dac80bc53932
     build-commands:
-      - install -Dm755 ./bun /app/bin/bun
-      - install -Dm755 ./bun /app/bin/bunx
+      - install -Dm755 bun /app/bin/bun
+      - install -Dm755 bun /app/bin/bunx
 
-  # 02Engine Application
+  # 02Engine 应用（核心修改在这里）
   - name: 02Engine
     buildsystem: simple
     build-options:
-      append-path: /usr/lib/sdk/node20/bin:/app/bin
+      append-path: /app/bin:/usr/lib/sdk/node20/bin  # Bun 在 /app/bin，Node 在 SDK
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
+        # 可加 ELECTRON_ENABLE_LOGGING=1 调试
     sources:
       - type: git
         url: https://github.com/02engine/desktop.git
         tag: v1.2.2
         commit: e5a6cd210eed10c7ff520b7e42808033cc2e7ca8
       - type: file
-        url: art/icon.png
+        url: https://raw.githubusercontent.com/02engine/desktop/main/art/icon.png
         dest-filename: icon.png
         sha256: f18ada96f6c02e9948ac8297e373089585a53c54d77ed77afa26f671140df7f8
       - type: file
-        path: linux-files/org.turbowarp.TurboWarp.metainfo.xml
-        dest-filename: org.turbowarp.TurboWarp.metainfo.xml
-        sha256: 22860e838dd82b1eefe2e0525b143ccfa3dcde53c1f9205ec0c3d589297420fc
-      - type: file
         path: flatpak/.bunfig.toml
         dest-filename: .bunfig.toml
-        sha256: 6cabee14f1568a83b7c1859b3ce910755bb79dd455fa3a6436c71bf18f738846        
+        sha256: 6cabee14f1568a83b7c1859b3ce910755bb79dd455fa3a6436c71bf18f738846
 
     build-commands:
-      # Install dependencies using bun
+      # 1. 用 Bun 安装依赖、fetch、build
       - bun install
-
-      # Download required resources
       - bun run fetch
-
-      # Build the webpack bundles
       - bun run webpack:prod
 
-      # Build the Electron app for Linux (unpacked directory mode)
+      # 2. 生成 unpacked 目录（包含所有动态库、asar、so 文件等）
       - bun run release-automation/build.js --linux-dir --x64
 
-      # Create installation directories
-      - install -Dm755 dist/linux-unpacked/02Engine /app/bin/02engine
-      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
-      - install -Dm644 dist-renderer-webpack/editor/gui/gui.html /app/share/doc/02engine/gui.html
+      # 3. 复制整个 unpacked 目录到 /app/main（标准做法，所有文件完整复制）
+      - mkdir -p /app/main
+      - cp -a dist/linux-unpacked/* /app/main/
 
-      # Create desktop file
+      # 4. 安装图标（保持原样）
+      - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
+
+      # 5. 创建 wrapper 脚本 /app/bin/02engine（启动 Electron 主程序）
+      - |
+        cat > /app/bin/02engine << 'EOF'
+        #!/usr/bin/env bash
+        set -euo pipefail
+        exec /app/main/02Engine "$@"
+        EOF
+      - chmod +x /app/bin/02engine
+
+      # 6. 创建 desktop 文件（Exec 指向 wrapper）
       - |
         cat > /app/share/applications/io.github._02engine._02Engine.desktop << 'EOF'
         [Desktop Entry]
@@ -92,7 +95,7 @@ modules:
         Keywords=scratch;programming;animation;
         EOF
 
-      # Create metainfo file for AppStream
+      # 7. 创建 metainfo（保持原样）
       - |
         cat > /app/share/metainfo/io.github._02engine._02Engine.metainfo.xml << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
@@ -148,7 +151,5 @@ modules:
         </component>
         EOF
 
-      # Create symlink for command
+      # 8. 可选：创建命令别名（保持原样）
       - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
-
-
