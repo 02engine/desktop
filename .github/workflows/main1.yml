@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       # 启用 Corepack 并固定 Yarn Classic 1.x
       - name: Setup Yarn Classic (1.x)
@@ -43,7 +43,7 @@ jobs:
           rm -f package-lock.json bun.lockb
 
           # 使用 --mode=update-lockfile 只生成/更新 yarn.lock
-          yarn install --mode=update-lockfile --frozen-lockfile || yarn install --mode=update-lockfile
+          yarn install --mode=update-lockfile
 
           # 强制替换 git+ssh 为 https（防止后续 flatpak-builder SSH 失败）
           if [ -f yarn.lock ]; then
