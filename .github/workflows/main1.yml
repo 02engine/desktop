@@ -1,0 +1,58 @@
+name: Bun Install + Cache Artifact
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest   # 或 ubuntu-24.04，如果你需要更新的系统
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 安装 Bun（使用官方 action，推荐）
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest   # 或指定版本如 "1.1.38"
+
+      # 3. 缓存 Bun 全局包缓存（最重要一步，极大加速 bun install）
+      - name: Cache Bun global install cache
+        uses: actions/cache@v4
+        id: bun-cache
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-cache-${{ hashFiles('**/bun.lockb', '**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-cache-
+
+      # 4. 执行 bun install（会优先使用缓存）
+      - name: Install dependencies with Bun
+        run: bun install
+
+      # 6. 把 Bun 全局缓存打包成 artifact 并提供下载
+      - name: Package Bun cache as artifact
+        if: always()   # 即使失败也打包，方便 debug
+        run: |
+          mkdir -p artifact-cache
+          if [ -d ~/.bun/install/cache ]; then
+            cp -r ~/.bun/install/cache artifact-cache/bun-install-cache
+            echo "Bun cache packaged"
+          else
+            echo "No Bun cache found"
+          fi
+
+      - name: Upload Bun cache artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bun-global-cache
+          path: artifact-cache/bun-install-cache
+          if-no-files-found: warn
+          retention-days: 7   # 可调整，7天后自动删除
