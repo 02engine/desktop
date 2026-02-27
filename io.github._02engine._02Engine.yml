@@ -21,14 +21,14 @@ finish-args:
   - --share=network
 
 modules:
-  # 主应用模块（直接把 sources json 放这里，避免隔离）
+  # 主应用模块（已合并 sources json，直接处理缓存）
   - name: 02Engine
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/node20/bin:$PATH
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
-        npm_config_cache: /run/build/02Engine/npm-cache   # 改成 module 自己的路径
+        npm_config_cache: /run/build/02Engine/npm-cache   # 使用模块自己的缓存路径
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
 
@@ -45,11 +45,20 @@ modules:
         url: https://raw.githubusercontent.com/02engine/desktop/main/flatpak/package-lock.json
         dest-filename: package-lock.json
         sha256: 191a5d5ce4bc8ef0f19c9c0fcba6a0b2ef68b048705764d7ee8ef0771e430302
-      # 直接把 generated-sources.json 放这里
+      # 直接把 generated-sources.json 放这里，确保下载的 tarball 进入本模块缓存
       - flatpak/generated-sources.json
 
     build-commands:
-      # DEBUG 部分（检查缓存是否创建）
+      # ──────────────────────────────── 强制 git SSH → HTTPS 重定向 ────────────────────────────────
+      # 这步在沙箱里运行，确保 npm 触发的任何 git 操作都走 https
+      - git config --global url."https://github.com/".insteadOf "git@github.com:"
+      - git config --global url."https://".insteadOf "ssh://git@github.com/"
+      - git config --global url."https://".insteadOf "git://github.com/"   # 覆盖 git:// 协议（极少见）
+      # debug: 确认配置生效
+      - echo "=== DEBUG: Git config for github 重定向 ==="
+      - git config --global --list | grep -i github || echo "No github url insteadOf rules found"
+
+      # ──────────────────────────────── DEBUG: 基本环境检查 ────────────────────────────────
       - echo "=== DEBUG: Node & npm 检查 ==="
       - which node || echo "node not found"
       - node --version || echo "node version failed"
@@ -64,13 +73,17 @@ modules:
       - echo "=== DEBUG: 当前目录内容 ==="
       - ls -la
 
-      # 离线安装
+      - echo "=== DEBUG: package-lock.json 检查 ==="
+      - ls -l package-lock.json || echo "package-lock.json missing"
+      - head -n 20 package-lock.json || echo "cannot read package-lock.json"
+
+      # ──────────────────────────────── 离线安装依赖 ────────────────────────────────
       - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force
 
-      # 输出 npm 日志
+      # 输出 npm 详细日志（如果失败，方便定位）
       - find /run/build/02Engine/npm-cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log found"
 
-      # 后续构建
+      # 后续构建步骤
       - npm run fetch || true
       - npm run webpack:prod
       - npm run release-automation/build.js --linux-dir --x64
