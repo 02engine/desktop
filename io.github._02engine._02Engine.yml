@@ -27,7 +27,7 @@ modules:
       append-path: /usr/lib/sdk/node20/bin:$PATH
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
-        npm_config_cache: /run/build/flatpak-node/npm-cache
+        npm_config_cache: flatpak-node/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
         NPM_CONFIG_GIT_TAG_VERSION_PREFIX: ""   # 让 npm 跳过 git tag 验证
