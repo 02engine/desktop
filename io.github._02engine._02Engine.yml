@@ -30,9 +30,8 @@ modules:
         npm_config_cache: /run/build/02Engine/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
-        # 强制 git 操作走 HTTPS
-        GIT_CONFIG_GLOBAL: /tmp/.gitconfig   # 指定用户级配置文件路径（可写）
-        GIT_SSH_COMMAND: "echo 'SSH not allowed, use HTTPS' >&2; exit 1"  # 禁用任何 SSH 尝试
+        # 强制 git 操作走 HTTPS（修复语法）
+        GIT_SSH_COMMAND: 'echo "SSH not allowed, use HTTPS" >&2; exit 1'   # 加双引号包裹 echo 参数
 
     sources:
       - type: git
@@ -50,20 +49,19 @@ modules:
       - flatpak/generated-sources.json
 
     build-commands:
-      # ──────────────────────────────── 强制 git SSH → HTTPS 重定向 ────────────────────────────────
+      # 强制 git SSH → HTTPS 重定向（用户级配置）
       - echo "=== DEBUG: 设置 git 配置（用户级） ==="
       - git config --global url."https://github.com/".insteadOf "git@github.com:"
       - git config --global url."https://".insteadOf "ssh://git@github.com/"
       - git config --global url."https://".insteadOf "git://github.com/"
       - git config --global core.askPass /bin/true
-      - git config --global --list | grep -i url || echo "Git url 重定向未设置"
 
-      # 额外 debug：确认配置路径
-      - echo "=== DEBUG: GIT_CONFIG_GLOBAL 路径 ==="
-      - echo $GIT_CONFIG_GLOBAL
-      - cat $GIT_CONFIG_GLOBAL || echo "Git config file not found"
+      # debug: 确认配置生效
+      - echo "=== DEBUG: Git config --global 检查 ==="
+      - git config --global --list | grep -i url || echo "No url redirect rules found in global config"
+      - git config --global --get-regexp '^url\.' || echo "No global url rules"
 
-      # ──────────────────────────────── DEBUG: 环境检查 ────────────────────────────────
+      # DEBUG: 环境检查
       - echo "=== DEBUG: Node & npm 检查 ==="
       - which node && node --version || echo "node failed"
       - which npm && npm --version || echo "npm failed"
@@ -80,10 +78,10 @@ modules:
       - ls -l package-lock.json || echo "lockfile missing"
       - head -n 20 package-lock.json || echo "cannot read lockfile"
 
-      # ──────────────────────────────── 离线安装依赖 ────────────────────────────────
+      # 离线安装
       - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force
 
-      # 输出 npm 日志（失败时关键）
+      # 输出 npm 日志
       - find /run/build/02Engine/npm-cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log"
 
       # 后续构建
