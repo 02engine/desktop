@@ -3,7 +3,7 @@ runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node20   # 可改成 node24 如果需要更高版本
+  - org.freedesktop.Sdk.Extension.node20
 command: 02engine
 
 finish-args:
@@ -35,11 +35,10 @@ modules:
     build-commands:
       - true
 
-  # Yarn Classic 预编译包模块（下载 + 解压方式，和 Bun 完全一致）
+  # Yarn Classic 预编译包模块（修复版）
   - name: yarn-prebuilt
     buildsystem: simple
     sources:
-      # 使用本地文件方式（仓库里的相对路径）
       - type: file
         path: flatpak/yarn-v1.22.22.tar.gz
         dest-filename: yarn-v1.22.22.tar.gz
@@ -49,25 +48,21 @@ modules:
       # 1. 创建目标目录
       - mkdir -p /app/yarn
 
-      # 2. 解压 tar.gz → tar → 解压到 /app/yarn
-      # 因为有两层 tar，所以先解压外层 tar.gz 得到 .tar，再解压 .tar
-      # 添加 --no-same-owner 避免所有权问题
-      - tar --no-same-owner -xzf yarn-v1.22.22.tar.gz -C /tmp
-      - tar --no-same-owner -xf /tmp/yarn-v1.22.22.tar -C /app/yarn --strip-components=1
-      - rm -rf /tmp/yarn-v1.22.22.tar*   # 清理临时文件
+      # 2. 直接解压 tar.gz 到 /app/yarn（Yarn 的 tar.gz 只有一层，不需要二次解压）
+      - tar --no-same-owner -xzf yarn-v1.22.22.tar.gz -C /app/yarn --strip-components=1
 
       # 3. 创建软链接，让 yarn 命令全局可用
       - ln -s /app/yarn/bin/yarn /app/bin/yarn
       - ln -s /app/yarn/bin/yarnpkg /app/bin/yarnpkg
 
-      # 4. 验证（可选，方便 debug）
-      - yarn --version || echo "Yarn not found after install"
+      # 4. 验证
+      - yarn --version
 
   # 主应用模块
   - name: 02Engine
     buildsystem: simple
     build-options:
-      append-path: /app/bin:/usr/lib/sdk/node20/bin   # 包含 /app/bin 以使用 yarn
+      append-path: /app/bin:/usr/lib/sdk/node20/bin
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
         npm_config_cache: /run/build/flatpak-node/npm-cache
