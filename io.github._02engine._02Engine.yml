@@ -56,7 +56,7 @@ modules:
         dest-filename: icon.png
         sha256: f18ada96f6c02e9948ac8297e373089585a53c54d77ed77afa26f671140df7f8
       - type: file
-        url: flatpak/package-lock.json
+        url: https://raw.githubusercontent.com/02engine/desktop/main/flatpak/package-lock.json
         dest-filename: package-lock.json
         sha256: 191a5d5ce4bc8ef0f19c9c0fcba6a0b2ef68b048705764d7ee8ef0771e430302
 
@@ -162,5 +162,6 @@ modules:
         EOF
 
       - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
+
 
 
