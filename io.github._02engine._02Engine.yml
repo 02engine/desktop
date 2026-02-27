@@ -44,6 +44,7 @@ modules:
         npm_config_cache: /run/build/flatpak-node/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
+        PATH: /usr/lib/sdk/node20/bin:$PATH  # 添加 node 和 npm 到 PATH
 
     sources:
       - type: git
@@ -56,8 +57,13 @@ modules:
         sha256: f18ada96f6c02e9948ac8297e373089585a53c54d77ed77afa26f671140df7f8
 
     build-commands:
+      # 检查 npm 是否可用
+      - command -v npm || ls -la /usr/lib/sdk/node20/bin/
+      - npm --version
+      - node --version
+      
       # 使用 npm 安装依赖
-      - npm i --offline --prefer-offline --ignore-scripts
+      - npm ci --offline --prefer-offline --ignore-scripts
       # 执行构建命令
       - npm run fetch
       - npm run webpack:prod
@@ -152,4 +158,3 @@ modules:
         EOF
 
       - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
-
