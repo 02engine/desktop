@@ -21,7 +21,7 @@ finish-args:
   - --share=network
 
 modules:
-  # 离线依赖模块（使用 Yarn 兼容的 generated-sources.json）
+  # 离线依赖模块
   - name: node-deps
     buildsystem: simple
     build-options:
@@ -35,7 +35,7 @@ modules:
     build-commands:
       - true
 
-  # Yarn Classic 预编译包模块（修复版）
+  # Yarn Classic 预编译包模块（解压到 /app/yarn，仅保留 bin）
   - name: yarn-prebuilt
     buildsystem: simple
     sources:
@@ -45,24 +45,17 @@ modules:
         sha256: 88268464199d1611fcf73ce9c0a6c4d44c7d5363682720d8506f6508addf36a0
 
     build-commands:
-      # 1. 创建目标目录
-      - mkdir -p /app/yarn
-
-      # 2. 直接解压 tar.gz 到 /app/yarn（Yarn 的 tar.gz 只有一层，不需要二次解压）
-      - tar --no-same-owner -xzf yarn-v1.22.22.tar.gz -C /app/yarn --strip-components=1
-
-      # 3. 创建软链接，让 yarn 命令全局可用
-      - ln -s /app/yarn/bin/yarn /app/bin/yarn
-      - ln -s /app/yarn/bin/yarnpkg /app/bin/yarnpkg
-
-      # 4. 验证
-      - yarn --version
+      # 解压到 /app/yarn
+      - tar --no-same-owner -xzf yarn-v1.22.22.tar.gz -C /app --strip-components=1
+      # 仅保留 bin 目录，删除其他文件
+      - find /app/yarn -mindepth 1 -maxdepth 1 ! -name bin -exec rm -rf {} \;
+      # 验证
+      - /app/yarn/bin/yarn --version
 
   # 主应用模块
   - name: 02Engine
     buildsystem: simple
     build-options:
-      append-path: /app/bin:/usr/lib/sdk/node20/bin
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
         npm_config_cache: /run/build/flatpak-node/npm-cache
@@ -80,22 +73,17 @@ modules:
         sha256: f18ada96f6c02e9948ac8297e373089585a53c54d77ed77afa26f671140df7f8
 
     build-commands:
-      # 使用预安装的 Yarn 进行离线安装依赖
-      - yarn install --offline --prefer-offline --frozen-lockfile --ignore-scripts
+      # 使用绝对路径调用 yarn
+      - /app/yarn/bin/yarn install --offline --prefer-offline --frozen-lockfile --ignore-scripts
+      - /app/yarn/bin/yarn run fetch
+      - /app/yarn/bin/yarn run webpack:prod
+      - /app/yarn/bin/yarn run release-automation/build.js --linux-dir --x64
 
-      # 后续脚本用 yarn run 执行
-      - yarn run fetch || true
-      - yarn run webpack:prod
-      - yarn run release-automation/build.js --linux-dir --x64
-
-      # 复制 unpacked 目录
       - mkdir -p /app/main
       - cp -a dist/linux-unpacked/* /app/main/
 
-      # 安装图标
       - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
 
-      # wrapper 脚本
       - |
         cat > /app/bin/02engine << 'EOF'
         #!/usr/bin/env bash
@@ -104,7 +92,6 @@ modules:
         EOF
       - chmod +x /app/bin/02engine
 
-      # desktop 文件
       - |
         cat > /app/share/applications/io.github._02engine._02Engine.desktop << 'EOF'
         [Desktop Entry]
@@ -120,7 +107,6 @@ modules:
         Keywords=scratch;programming;animation;
         EOF
 
-      # metainfo
       - |
         cat > /app/share/metainfo/io.github._02engine._02Engine.metainfo.xml << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
