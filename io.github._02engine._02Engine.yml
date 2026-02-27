@@ -27,11 +27,12 @@ modules:
       append-path: /usr/lib/sdk/node20/bin:$PATH
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
-        npm_config_cache: /run/build/02Engine/npm-cache
+        npm_config_cache: /run/build/flatpak-node/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
-        # 强制 git 操作走 HTTPS（修复 GIT_SSH_COMMAND 语法）
-        GIT_SSH_COMMAND: sh -c 'echo "SSH not allowed, use HTTPS" >&2; exit 1'
+        NPM_CONFIG_GIT_TAG_VERSION_PREFIX: ""   # 让 npm 跳过 git tag 验证
+        NO_UPDATE_NOTIFIER: "1"
+        NPM_CONFIG_UPDATE_NOTIFIER: "false"
 
     sources:
       - type: git
@@ -49,42 +50,24 @@ modules:
       - flatpak/generated-sources.json
 
     build-commands:
-      # 强制 git SSH → HTTPS 重定向（用户级配置）
-      - echo "=== DEBUG: 设置 git 配置（用户级） ==="
-      - git config --global url."https://github.com/".insteadOf "git@github.com:"
-      - git config --global url."https://".insteadOf "ssh://git@github.com/"
-      - git config --global url."https://".insteadOf "git://github.com/"
-      - git config --global core.askPass /bin/true
-
-      # debug: 确认配置生效
-      - echo "=== DEBUG: Git config --global 检查 ==="
-      - git config --global --list | grep -i url || echo "No url redirect rules found in global config"
-      - git config --global --get-regexp '^url\.' || echo "No global url rules"
-
-      # DEBUG: 环境检查
+      # DEBUG 检查
       - echo "=== DEBUG: Node & npm 检查 ==="
       - which node && node --version || echo "node failed"
       - which npm && npm --version || echo "npm failed"
 
-      - echo "=== DEBUG: 当前缓存目录 ==="
-      - ls -la /run/build/02Engine/npm-cache || echo "npm cache not found"
-      - du -sh /run/build/02Engine/npm-cache || echo "cache size unknown"
-      - find /run/build/02Engine/npm-cache -type f | wc -l || echo "no cache files"
+      - echo "=== DEBUG: npm 缓存路径 ==="
+      - echo $npm_config_cache
+      - ls -la $npm_config_cache || echo "npm cache not found"
+      - du -sh $npm_config_cache || echo "cache size unknown"
+      - find $npm_config_cache -type f | wc -l || echo "no cache files"
 
-      - echo "=== DEBUG: 当前目录内容 ==="
+      - echo "=== DEBUG: 当前目录 ==="
       - ls -la
 
-      - echo "=== DEBUG: package-lock.json 检查 ==="
-      - ls -l package-lock.json || echo "lockfile missing"
-      - head -n 20 package-lock.json || echo "cannot read lockfile"
+      - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-git-tags
 
-      # 离线安装
-      - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force
+      - find $npm_config_cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log"
 
-      # 输出 npm 日志
-      - find /run/build/02Engine/npm-cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log"
-
-      # 后续构建
       - npm run fetch || true
       - npm run webpack:prod
       - npm run release-automation/build.js --linux-dir --x64
