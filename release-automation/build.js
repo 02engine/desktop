@@ -348,14 +348,15 @@ const buildSnap = () => {
 const buildRpm = () => build({
   platformName: 'LINUX',
   platformType: 'rpm',
-  manageUpdates: true
-  // Optional: customize rpm behavior
-  // extraConfig: {
-  //   rpm: {
-  //     fpm: ["--rpm-compression", "xz"],
-  //     depends: [...]
-  //   }
-  // }
+  manageUpdates: true,
+  extraConfig: {
+      rpm: {
+        fpm: [
+          '--rpm-packager', '0.2Studio <ericmu20101103@163.com>',
+          '--vendor', '0.2Studio',
+        ]
+      }
+    }
 });
 
 // ── Added: pacman target + rename to .pkg.tar.zst (Arch standard) ──────────────

@@ -5,7 +5,7 @@
   "license": "GPL-3.0",
   "author": {
     "email": "ericmu20101103@163.com",
-    "name": "02Studio"
+    "name": "0.2Studio"
   },
   "scripts": {
     "fetch": "node scripts/download-library-files.js && node scripts/download-packager.js && node scripts/prepare-extensions.js",
