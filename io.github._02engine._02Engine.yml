@@ -67,6 +67,7 @@ modules:
       - node --version
       
       # 使用 npm 安装依赖
+      - npm install electron yocto-queue --offline
       - npm ci --offline --ignore-scripts
       # 执行构建命令
       - npm run fetch
@@ -162,6 +163,7 @@ modules:
         EOF
 
       - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
+
 
 
 
