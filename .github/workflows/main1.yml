@@ -1,4 +1,4 @@
-name: Generate Flatpak Node Sources (Yarn-compatible)
+name: Generate Flatpak Node Sources (generated-sources.json)
 
 on:
   push:
@@ -20,14 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-
-      # 启用 Corepack 并固定 Yarn Classic 1.x
-      - name: Setup Yarn Classic (1.x)
-        run: |
-          corepack enable
-          corepack prepare yarn@1.22.22 --activate
-          yarn --version  # 应该输出 1.22.22
+          node-version: '20'
 
       - name: Install flatpak-node-generator via pipx
         run: |
@@ -36,67 +29,64 @@ jobs:
           pipx install flatpak-node-generator
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      # 生成/更新 yarn.lock（只更新 lockfile，不安装依赖）
-      - name: Generate or update yarn.lock
+      - name: Generate or update package-lock.json (v1 format)
+        run: npm install --package-lock-only --ignore-scripts --lockfile-version=1
+
+      # ────────────────────────────────────────────────────────────────
+      # 关键步骤：将 lockfile 中的所有 git+ssh 替换为 https
+      # ────────────────────────────────────────────────────────────────
+      - name: Convert git+ssh to https in package-lock.json
         run: |
-          # 清理可能存在的冲突 lockfile
-          rm -f package-lock.json bun.lockb
+          # 备份原始文件
+          cp package-lock.json package-lock.json.bak
 
-          # 使用 --mode=update-lockfile 只生成/更新 yarn.lock
-          yarn install --mode=update-lockfile
+          # 替换 git+ssh://git@github.com/... → https://github.com/...
+          sed -i 's|git+ssh://git@github.com/|https://github.com/|g' package-lock.json
 
-          # 强制替换 git+ssh 为 https（防止后续 flatpak-builder SSH 失败）
-          if [ -f yarn.lock ]; then
-            sed -i 's|git+ssh://git@github.com/|https://github.com/|g' yarn.lock || true
-            sed -i 's|git@github.com:|https://github.com/|g' yarn.lock || true
-            echo "yarn.lock after protocol replacement:"
-            head -n 50 yarn.lock
-          else
-            echo "yarn.lock was not generated!"
-            exit 1
-          fi
+          # 替换 git@github.com:... → https://github.com/...
+          sed -i 's|git@github.com:|https://github.com/|g' package-lock.json
+
+          # 可选：移除 resolved 中的 ssh 部分（如果还有残留）
+          sed -i 's|^.*"resolved": "git+ssh://.*$|  "resolved": "https://github.com${BASH_REMATCH[1]}",|g' package-lock.json || true
+
+          # 显示变更（方便 debug）
+          echo "Changes made to package-lock.json:"
+          git diff --color=always package-lock.json.bak package-lock.json || true
 
       - name: Remove node_modules (safety)
         run: rm -rf node_modules || true
 
-      # 生成 Yarn 专属 generated-sources.json
-      - name: Generate generated-sources.json (Yarn mode)
+      - name: Generate generated-sources.json
         run: |
-          if [ -f yarn.lock ]; then
-            flatpak-node-generator yarn yarn.lock \
-              --output generated-sources.json
-          else
-            echo "yarn.lock missing, skipping generation"
-            exit 1
-          fi
+          flatpak-node-generator npm package-lock.json \
+            --output generated-sources.json
 
       - name: Upload generated-sources.json
         uses: actions/upload-artifact@v4
         with:
-          name: flatpak-sources-yarn
+          name: flatpak-sources
           path: generated-sources.json
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload Yarn lockfile and related files
+      - name: Upload modified package-lock.json and related files
         uses: actions/upload-artifact@v4
         with:
-          name: flatpak-yarn-files
+          name: flatpak-related-files
           path: |
-            yarn.lock
+            package-lock.json
             package.json
             generated-sources.json
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Upload failure logs and backups
+      - name: Upload logs & backup on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: failure-logs-and-backup
           path: |
-            yarn.lock
             package-lock.json.bak
-            **/*.log
             npm-debug.log
+            **/*.log
           retention-days: 3
