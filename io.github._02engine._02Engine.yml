@@ -3,7 +3,7 @@ runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node20
+  - org.freedesktop.Sdk.Extension.node20   # 如果升级到 node24，请改这里
 command: 02engine
 
 finish-args:
@@ -21,7 +21,7 @@ finish-args:
   - --share=network
 
 modules:
-  # 离线依赖模块
+  # 离线依赖模块（保持不变）
   - name: node-deps
     buildsystem: simple
     build-options:
@@ -35,16 +35,16 @@ modules:
     build-commands:
       - true
 
-  # 主应用模块
+  # 主应用模块（加入大量 debug）
   - name: 02Engine
     buildsystem: simple
     build-options:
+      append-path: /usr/lib/sdk/node20/bin:$PATH  # 确保 node 和 npm 在 PATH 中
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
         npm_config_cache: /run/build/flatpak-node/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
-        PATH: /usr/lib/sdk/node20/bin:$PATH  # 添加 node 和 npm 到 PATH
 
     sources:
       - type: git
@@ -61,21 +61,45 @@ modules:
         sha256: 191a5d5ce4bc8ef0f19c9c0fcba6a0b2ef68b048705764d7ee8ef0771e430302
 
     build-commands:
-      # 检查 npm 是否可用
-      - command -v npm || ls -la /usr/lib/sdk/node20/bin/
-      - npm --version
-      - node --version
-      
-      # 使用 npm 安装依赖
-      - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock
-      # 执行构建命令
-      - npm run fetch
+      # ──────────────────────────────── DEBUG 开始 ────────────────────────────────
+      # 1. 检查 node 和 npm 是否可用
+      - echo "=== DEBUG: 检查 Node 和 npm 可用性 ==="
+      - which node || echo "node not found"
+      - node --version || echo "node version failed"
+      - which npm || echo "npm not found"
+      - npm --version || echo "npm version failed"
+
+      # 2. 检查缓存目录是否存在及内容
+      - echo "=== DEBUG: 检查 npm 缓存目录 ==="
+      - ls -la /run/build/flatpak-node/npm-cache || echo "npm cache dir not found"
+      - du -sh /run/build/flatpak-node/npm-cache || echo "cache size unknown"
+      - find /run/build/flatpak-node/npm-cache -type f | wc -l || echo "no files in cache"
+
+      # 3. 检查 package-lock.json 是否存在
+      - echo "=== DEBUG: 检查 package-lock.json ==="
+      - ls -l package-lock.json || echo "package-lock.json missing"
+      - head -n 20 package-lock.json || echo "cannot read package-lock.json"
+
+      # 4. 检查当前工作目录内容
+      - echo "=== DEBUG: 当前工作目录内容 ==="
+      - ls -la
+
+      # ──────────────────────────────── DEBUG 结束 ────────────────────────────────
+
+      # 尝试离线安装（使用 ci 更严格，强制使用 lockfile）
+      - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force
+
+      # 如果安装失败，输出 npm 日志（日志文件路径来自你的错误信息）
+      - cat /run/build/flatpak-node/npm-cache/_logs/*-debug-*.log || echo "No npm debug log found"
+
+      # 继续后续步骤（如果安装成功）
+      - npm run fetch || true
       - npm run webpack:prod
       - npm run release-automation/build.js --linux-dir --x64
 
       # 复制构建结果
       - mkdir -p /app/main
-      - cp -a dist/linux-unpacked/* /app/main/
+      - cp -a dist/linux-unpacked/* /app/main/ || echo "dist/linux-unpacked not found"
 
       # 安装图标
       - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
@@ -162,10 +186,3 @@ modules:
         EOF
 
       - ln -s /app/bin/02engine /app/bin/io.github._02engine._02Engine
-
-
-
-
-
-
-
