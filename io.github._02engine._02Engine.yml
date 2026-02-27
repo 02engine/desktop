@@ -30,8 +30,8 @@ modules:
         npm_config_cache: /run/build/02Engine/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
-        # 强制 git 操作走 HTTPS（修复语法）
-        GIT_SSH_COMMAND: 'echo "SSH not allowed, use HTTPS" >&2; exit 1'   # 加双引号包裹 echo 参数
+        # 强制 git 操作走 HTTPS（修复 GIT_SSH_COMMAND 语法）
+        GIT_SSH_COMMAND: sh -c 'echo "SSH not allowed, use HTTPS" >&2; exit 1'
 
     sources:
       - type: git
