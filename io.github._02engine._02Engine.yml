@@ -21,31 +21,14 @@ finish-args:
   - --share=network
 
 modules:
-  # 离线依赖模块（简化引用，加入 debug）
-  - name: node-deps
-    buildsystem: simple
-    build-options:
-      env:
-        XDG_CACHE_HOME: /run/build/flatpak-node/cache
-    sources:
-      - flatpak/generated-sources.json   # 直接引用 json（最可靠）
-
-    build-commands:
-      - true
-      # debug: 检查 node-deps 是否创建缓存
-      - echo "=== DEBUG: node-deps after sources ==="
-      - ls -la /run/build/flatpak-node || echo "flatpak-node dir not created"
-      - ls -la /run/build/flatpak-node/cache || echo "cache dir not created"
-      - find /run/build -name "*npm-cache*" || echo "no npm-cache found"
-
-  # 主应用模块（加强 debug）
+  # 主应用模块（直接把 sources json 放这里，避免隔离）
   - name: 02Engine
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/node20/bin:$PATH
       env:
         npm_config_nodedir: /usr/lib/sdk/node20
-        npm_config_cache: /run/build/flatpak-node/npm-cache
+        npm_config_cache: /run/build/02Engine/npm-cache   # 改成 module 自己的路径
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
 
@@ -62,46 +45,41 @@ modules:
         url: https://raw.githubusercontent.com/02engine/desktop/main/flatpak/package-lock.json
         dest-filename: package-lock.json
         sha256: 191a5d5ce4bc8ef0f19c9c0fcba6a0b2ef68b048705764d7ee8ef0771e430302
+      # 直接把 generated-sources.json 放这里
+      - flatpak/generated-sources.json
 
     build-commands:
-      # DEBUG 部分
+      # DEBUG 部分（检查缓存是否创建）
       - echo "=== DEBUG: Node & npm 检查 ==="
       - which node || echo "node not found"
       - node --version || echo "node version failed"
       - which npm || echo "npm not found"
       - npm --version || echo "npm version failed"
 
-      - echo "=== DEBUG: npm 缓存目录检查 ==="
-      - ls -la /run/build/flatpak-node/npm-cache || echo "npm cache dir not found"
-      - du -sh /run/build/flatpak-node/npm-cache || echo "cache size unknown"
-      - find /run/build/flatpak-node/npm-cache -type f | wc -l || echo "no files in cache"
-
-      - echo "=== DEBUG: package-lock.json 检查 ==="
-      - ls -l package-lock.json || echo "package-lock.json missing"
-      - head -n 20 package-lock.json || echo "cannot read package-lock.json"
+      - echo "=== DEBUG: 当前缓存目录检查 ==="
+      - ls -la /run/build/02Engine/npm-cache || echo "npm cache dir not found"
+      - du -sh /run/build/02Engine/npm-cache || echo "cache size unknown"
+      - find /run/build/02Engine/npm-cache -type f | wc -l || echo "no files in cache"
 
       - echo "=== DEBUG: 当前目录内容 ==="
       - ls -la
 
-      # 安装依赖（尝试 ci + fallback install）
+      # 离线安装
       - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force
 
-      # 输出 npm 日志（如果有错误）
-      - find /run/build/flatpak-node/npm-cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log found"
+      # 输出 npm 日志
+      - find /run/build/02Engine/npm-cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log found"
 
       # 后续构建
       - npm run fetch || true
       - npm run webpack:prod
       - npm run release-automation/build.js --linux-dir --x64
 
-      # 复制结果
       - mkdir -p /app/main
       - cp -a dist/linux-unpacked/* /app/main/ || echo "dist/linux-unpacked not found"
 
-      # 图标
       - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
 
-      # wrapper 脚本
       - |
         cat > /app/bin/02engine << 'EOF'
         #!/usr/bin/env bash
@@ -110,7 +88,6 @@ modules:
         EOF
       - chmod +x /app/bin/02engine
 
-      # desktop 和 metainfo 保持不变
       - |
         cat > /app/share/applications/io.github._02engine._02Engine.desktop << 'EOF'
         [Desktop Entry]
