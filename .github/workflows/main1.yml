@@ -30,7 +30,7 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Generate or update package-lock.json (v1 format)
-        run: npm install --package-lock-only --ignore-scripts --lockfile-version=1
+        run: npm install --package-lock-only --ignore-scripts 
 
       # ────────────────────────────────────────────────────────────────
       # 关键步骤：将 lockfile 中的所有 git+ssh 替换为 https
