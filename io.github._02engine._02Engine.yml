@@ -64,6 +64,10 @@ modules:
       - echo "=== DEBUG: 当前目录 ==="
       - ls -la
 
+      - git config --global url."https://github.com/".insteadOf git@github.com:
+      - git config --global url."https://".insteadOf git://
+      - git config --global url."https://".insteadOf ssh://
+
       - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-git-tags
 
       - find $npm_config_cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log"
