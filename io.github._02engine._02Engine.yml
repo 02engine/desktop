@@ -65,7 +65,7 @@ modules:
       - ls -la .
 
       - echo "=== DEBUG: flatpak-node git-packages 目录（如果存在） ==="
-      - ls -la .flatpak-builder/build/*/flatpak-node/git-packages || echo "No git-packages dir found"
+      - ls -la flatpak-node/git-packages || echo "No git-packages dir found"
 
       # 关键修复：强制重写 git+file: / file: / 被误解的 ssh://file 为正确的本地 file:///
       - git config --global url."file:///".insteadOf git+file:
