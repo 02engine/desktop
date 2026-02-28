@@ -46,7 +46,7 @@ modules:
       - type: file
         url: https://raw.githubusercontent.com/02engine/desktop/main/flatpak/package-lock.json
         dest-filename: package-lock.json
-        sha256: 191a5d5ce4bc8ef0f19c9c0fcba6a0b2ef68b048705764d7ee8ef0771e430302
+        sha256: 1f6c3b0df1df9c1e11f6928b903c4997833cc2a9562ff6a5d8b2da70615d613d
       - flatpak/generated-sources.json
 
     build-commands:
