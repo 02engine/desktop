@@ -33,6 +33,7 @@ modules:
         NPM_CONFIG_GIT_TAG_VERSION_PREFIX: ""
         NO_UPDATE_NOTIFIER: "1"
         NPM_CONFIG_UPDATE_NOTIFIER: "false"
+        ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
     sources:
       - type: git
@@ -81,7 +82,7 @@ modules:
       # - git config --global http.sslVerify false
 
       # 加强 npm ci/install：更严格离线 + 跳过 git fetch/tag 检查
-      - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags --fetch-retries=0 --git-tag-version=false || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags --fetch-retries=0 --git-tag-version=false --no-save
+      - npm ci --prefer-offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags --fetch-retries=0 --git-tag-version=false || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags --fetch-retries=0 --git-tag-version=false --no-save
 
       # 输出 npm 日志（如果失败方便看）
       - find $npm_config_cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log found"
