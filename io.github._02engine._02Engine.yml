@@ -29,6 +29,7 @@ modules:
         npm_config_nodedir: /usr/lib/sdk/node20
         npm_config_cache: flatpak-node/npm-cache
         npm_config_offline: 'true'
+        XDG_CACHE_HOME: flatpak-node/cache
         ELECTRON_ENABLE_LOGGING: '1'
         NPM_CONFIG_GIT_TAG_VERSION_PREFIX: ""
         NO_UPDATE_NOTIFIER: "1"
