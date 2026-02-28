@@ -30,7 +30,7 @@ modules:
         npm_config_cache: flatpak-node/npm-cache
         npm_config_offline: 'true'
         ELECTRON_ENABLE_LOGGING: '1'
-        NPM_CONFIG_GIT_TAG_VERSION_PREFIX: ""   # 让 npm 跳过 git tag 验证
+        NPM_CONFIG_GIT_TAG_VERSION_PREFIX: ""
         NO_UPDATE_NOTIFIER: "1"
         NPM_CONFIG_UPDATE_NOTIFIER: "false"
 
@@ -61,23 +61,38 @@ modules:
       - du -sh $npm_config_cache || echo "cache size unknown"
       - find $npm_config_cache -type f | wc -l || echo "no cache files"
 
-      - echo "=== DEBUG: 当前目录 ==="
-      - ls -la
+      - echo "=== DEBUG: 当前目录内容 ==="
+      - ls -la .
 
+      - echo "=== DEBUG: flatpak-node git-packages 目录（如果存在） ==="
+      - ls -la .flatpak-builder/build/*/flatpak-node/git-packages || echo "No git-packages dir found"
+
+      # 关键修复：强制重写 git+file: / file: / 被误解的 ssh://file 为正确的本地 file:///
+      - git config --global url."file:///".insteadOf git+file:
+      - git config --global url."file:///".insteadOf file:
+      - git config --global url."file:///".insteadOf ssh://file:
+      - git config --global url."file:///".insteadOf "ssh://"
+      # 保留原有 github 重写（防万一有远程 git 依赖）
       - git config --global url."https://github.com/".insteadOf git@github.com:
       - git config --global url."https://".insteadOf git://
       - git config --global url."https://".insteadOf ssh://
 
-      - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-git-tags
+      # 临时禁用 ssl 校验（flatpak 沙盒有时证书链有问题，可选，成功后可注释掉）
+      # - git config --global http.sslVerify false
 
-      - find $npm_config_cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log"
+      # 加强 npm ci/install：更严格离线 + 跳过 git fetch/tag 检查
+      - npm ci --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags --fetch-retries=0 --git-tag-version=false || npm install --prefer-offline --offline --no-audit --no-fund --ignore-scripts --legacy-peer-deps --force --no-package-lock --no-git-tags --fetch-retries=0 --git-tag-version=false --no-save
 
+      # 输出 npm 日志（如果失败方便看）
+      - find $npm_config_cache -name "*-debug-*.log" -exec cat {} \; || echo "No npm debug log found"
+
+      # 后续构建步骤
       - npm run fetch || true
       - npm run webpack:prod
       - npm run release-automation/build.js --linux-dir --x64
 
       - mkdir -p /app/main
-      - cp -a dist/linux-unpacked/* /app/main/ || echo "dist/linux-unpacked not found"
+      - cp -a dist/linux-unpacked/* /app/main/ || echo "dist/linux-unpacked not found, check build logs"
 
       - install -Dm644 icon.png /app/share/icons/hicolor/512x512/apps/io.github._02engine._02Engine.png
 
