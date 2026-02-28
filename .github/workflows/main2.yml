@@ -1,0 +1,57 @@
+name: Generate Flatpak Node Sources (generated-sources.json)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  generate-sources:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate or update package-lock.json (v1 format)
+        run: npm install --package-lock-only --ignore-scripts
+
+      # ────────────────────────────────────────────────────────────────
+      # 关键步骤：将 lockfile 中的所有 git+ssh 替换为 https
+      # ────────────────────────────────────────────────────────────────
+      - name: Convert git+ssh to https in package-lock.json
+        run: |
+          # 备份原始文件
+          cp package-lock.json package-lock.json.bak
+
+          # 替换 git+ssh://git@github.com/... → https://github.com/...
+          sed -i 's|git+ssh://git@github.com/|https://github.com/|g' package-lock.json
+
+          # 替换 git@github.com:... → https://github.com/...
+          sed -i 's|git@github.com:|https://github.com/|g' package-lock.json
+
+          # 可选：移除 resolved 中的 ssh 部分（如果还有残留）
+          sed -i 's|^.*"resolved": "git+ssh://.*$|  "resolved": "https://github.com${BASH_REMATCH[1]}",|g' package-lock.json || true
+
+          # 显示变更（方便 debug）
+          echo "Changes made to package-lock.json:"
+          git diff --color=always package-lock.json.bak package-lock.json || true
+
+      - name: Upload modified package-lock.json and related files
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-related-files
+          path: |
+            package-lock.json
+            package.json
+          if-no-files-found: warn
+          retention-days: 7
