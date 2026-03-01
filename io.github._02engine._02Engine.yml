@@ -40,10 +40,6 @@ modules:
         ELECTRON_CONFIG_CACHE: flatpak-node/cache/electron
 
     sources:
-      - type: archive
-        url: https://github.com/flathub/electron-sample-app/archive/1.0.1.tar.gz
-        sha256: a2feb3f1cf002a2e4e8900f718cc5c54db4ad174e48bfcfbddcd588c7b716d5b
-        dest: main
       - type: git
         url: https://github.com/02engine/desktop.git
         commit: 56e8d5f030761aa835b6941fcc7d80fab26dba6c
