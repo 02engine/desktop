@@ -1,5 +1,5 @@
 id: io.github._02engine._02Engine
-runtime: org.freedesktop.Platform
+runtime: org.electronjs.Electron2.BaseApp
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 sdk-extensions:
