@@ -31,8 +31,8 @@ jobs:
         run: |
           flatpak install --user --assumeyes --noninteractive \
             flathub \
-            org.freedesktop.Sdk.Extension.node20//25.08 \
-            org.electronjs.Electron2.BaseApp//25.08
+            org.freedesktop.Sdk.Extension.node20//24.08 \
+            org.electronjs.Electron2.BaseApp//24.08
 
       - name: 构建 Flatpak 应用
         run: |
