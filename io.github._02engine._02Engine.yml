@@ -1,7 +1,7 @@
 id: io.github._02engine._02Engine
 runtime: org.electronjs.Electron2.BaseApp
-runtime-version: '24.08'
-sdk: org.freedesktop.Sdk
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk//25.08
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node20
 command: 02engine
