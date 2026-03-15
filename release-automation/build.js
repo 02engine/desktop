@@ -352,7 +352,6 @@ const buildRpm = () => build({
   extraConfig: {
       rpm: {
         fpm: [
-          '--rpm-packager', '0.2Studio <ericmu20101103@163.com>',
           '--vendor', '0.2Studio',
         ]
       }
