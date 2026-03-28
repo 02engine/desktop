@@ -80,6 +80,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
           persist-credentials: false
 
@@ -109,7 +110,8 @@ jobs:
 
       - name: Package
         run: |
-          node release-automation/build.js --debian --tarball --appimage --pacman --x64 --armv7l --arm64 --production
+          node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64 --production
+          node release-automation/build.js --pacman --x64 --arm64 --production
 
       - name: Print file tree
         run: node scripts/print-file-tree.js dist
@@ -147,6 +149,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
           persist-credentials: false
 
@@ -201,6 +204,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
           persist-credentials: false
           path: repo
