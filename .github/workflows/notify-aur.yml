@@ -1,27 +1,24 @@
-name: Release → Dispatch Tag to 02engine-aur
+name: Notify AUR
 
 on:
-  workflow_run:
-    workflows: ["Release"] 
-    types: [completed]  
-  workflow_dispatch:            # 你也可以手动测试
+  workflow_dispatch:
 
 jobs:
-  dispatch-AUR:
+  dispatch-aur:
     runs-on: ubuntu-latest
     steps:
-        - name: Get latest release tag
-          uses: pozetroninc/github-action-get-latest-release@master
-          id: latest
-          with:
-            repository: ${{ github.repository }}
-            excludes: draft
-            token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get latest release tag
+        uses: pozetroninc/github-action-get-latest-release@master
+        id: latest
+        with:
+          repository: ${{ github.repository }}
+          excludes: draft
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: Send tag to aur repo
-          uses: peter-evans/repository-dispatch@v3
-          with:
-              token: ${{ secrets.ORG_DISPATCH_TOKEN }}          
-              repository: ${{ github.repository_owner }}/02engine-aur  
-              event-type: updata-aur                           
-              client-payload: '{"tag": "${{ steps.latest.outputs.release }}"}'
+      - name: Send tag to AUR repo
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.ORG_DISPATCH_TOKEN }}
+          repository: ${{ github.repository_owner }}/02engine-aur
+          event-type: updata-aur
+          client-payload: '{"tag": "${{ steps.latest.outputs.release }}"}'

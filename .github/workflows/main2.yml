@@ -1,10 +1,6 @@
-name: Generate Flatpak Node Sources (generated-sources.json)
+name: Generate Flatpak Node Sources (legacy)
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
