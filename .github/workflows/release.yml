@@ -1,245 +1,274 @@
-name: Release
+name: Update Version
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish (vX.Y.Z)
+        required: true
+        type: string
   push:
     tags:
-    - 'v*'
+      - "v*"
 
 permissions:
-  # required to modify releases
   contents: write
 
 jobs:
-  release-linux-noarch:
+  prepare-release:
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release-tag.outputs.release_tag }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
-    - name: Install strip-nondeterminism
-      run: sudo apt-get install strip-nondeterminism
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22
-    - name: Setup bun ⚙️
-      uses: oven-sh/setup-bun@v2
-    - name: Install dependencies
-      run: bun install --loglevel=info
-    - name: Fetch
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: bun run fetch
-    - name: Compile
-      run: bun run webpack:prod
-    - name: Package
-      run: |
-        node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64 --production
-    - name: Print file tree
-      run: node scripts/print-file-tree.js dist
-    - name: Upload artifacts to GitHub Actions
-      uses: actions/upload-artifact@v4
-      with:
-        name: arch-conversion-artifacts
-        path: |
-          dist/*.deb
-          dist/*.tar.gz
-          dist/*.AppImage
-          convertarch.sh
-        retention-days: 1
-        
-  release-linux-includearch:
-    needs: release-linux-noarch
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux:base-devel
-      options: --privileged
-
-    steps:
-      - name: Prepare Arch environment
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm sudo git base-devel namcap libarchive zstd
-          useradd -m -s /bin/bash builduser
-          echo "builduser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/builduser
-          echo 'export TERM=xterm' >> /etc/bash.bashrc
-
-      - name: Install and update debtap
-        run: |
-          sudo -u builduser bash <<'EOF'
-          set -e
-          export TERM=xterm
-          cd /home/builduser
-          git clone https://aur.archlinux.org/debtap.git
-          cd debtap
-          makepkg -si --noconfirm
-          EOF
-          
-          debtap -u
-          debtap --version || true
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          name: arch-conversion-artifacts
-          path: /workspace
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Setup workspace
+      - name: Resolve release tag
+        id: release-tag
+        shell: bash
         run: |
-          cd /workspace
-          ls -la
-          chmod +x convertarch.sh
-          mkdir -p dist
-          find . -name "*.deb" -exec mv {} dist/ \; 2>/dev/null || true
-          
-          if [ -f "convertarch.sh" ]; then
-            cp convertarch.sh convertarch.sh.backup
-            sed -i 's/debtap/sudo debtap/g' convertarch.sh || true
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            release_tag="${{ inputs.tag }}"
+          else
+            release_tag="${{ github.ref_name }}"
           fi
-          
-          find dist -name "*.deb" | sort
 
-      - name: Convert packages
-        working-directory: /workspace
+          if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vX.Y.Z, got: $release_tag" >&2
+            exit 1
+          fi
+
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag exists
+        shell: bash
         run: |
-          export TERM=xterm
-          ./convertarch.sh
+          set -euo pipefail
+          release_tag="${{ steps.release-tag.outputs.release_tag }}"
+          git fetch --force --tags origin
+          git rev-parse --verify "refs/tags/$release_tag" >/dev/null
 
-      - name: Verify packages
-        working-directory: /workspace
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release-tag.outputs.release_tag }}
+        shell: bash
         run: |
-          find . -name "*.pkg.tar.zst" -ls 2>/dev/null | head -10 || true
-          ls -la arch-packages/ 2>/dev/null || true
-          pwd
-          ls -la
+          set -euo pipefail
 
-      - name: Copy arch files
-        run: cp /workspace/arch-packages/*.pkg.tar.zst /workspace/dist/
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --title "$RELEASE_TAG"
+          else
+            gh release create "$RELEASE_TAG" \
+              --title "$RELEASE_TAG" \
+              --generate-notes \
+              --verify-tag
+          fi
 
-      - name: Upload packages
+  release-linux:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Linux packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y strip-nondeterminism libarchive-tools
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: |
+          node release-automation/build.js --debian --tarball --appimage --pacman --x64 --armv7l --arm64 --production
+
+      - name: Print file tree
+        run: node scripts/print-file-tree.js dist
+
+      - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
           name: linux
           path: |
-            /workspace/dist/*.pkg.tar.zst
-            /workspace/dist/*.deb
-            /workspace/dist/*.tar.gz
-            /workspace/dist/*.AppImage
-            
-      - name: Upload artifacts to tag
-        uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
-        with:
-          file: /workspace/dist/*.deb;/workspace/dist/*.tar.gz;/workspace/dist/*.AppImage;/workspace/dist/*.pkg.tar.zst
-          draft: false
+            dist/*.deb
+            dist/*.tar.gz
+            dist/*.AppImage
+            dist/*.pkg.tar.zst
+
+      - name: Upload artifacts to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" \
+            dist/*.deb \
+            dist/*.tar.gz \
+            dist/*.AppImage \
+            dist/*.pkg.tar.zst \
+            --clobber
 
   release-mac:
+    needs: prepare-release
     runs-on: macos-latest
+    env:
+      RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22
-    - name: Setup bun ⚙️
-      uses: oven-sh/setup-bun@v2
-    - name: Install dependencies
-      run: bun install --loglevel=info
-    - name: Fetch
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: bun run fetch
-    - name: Compile
-      run: bun run webpack:prod
-    - name: Package
-      run: |
-        node release-automation/build.js --mac --universal
-        node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
-    - name: Print file tree
-      run: node scripts/print-file-tree.js dist
-    - name: Upload artifacts to GitHub Actions
-      uses: actions/upload-artifact@v4
-      with:
-        name: mac
-        path: dist/*.dmg
-    - name: Upload artifacts to tag
-      uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
-      with:
-        file: dist/*.dmg
-        draft: false
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run fetch
+
+      - name: Compile
+        run: bun run webpack:prod
+
+      - name: Package
+        run: |
+          node release-automation/build.js --mac --universal
+          node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
+
+      - name: Print file tree
+        run: node scripts/print-file-tree.js dist
+
+      - name: Upload artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/*.dmg
+
+      - name: Upload artifacts to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" dist/*.dmg --clobber
 
   release-windows:
-    # GitHub's Windows runners have a C: drive and a D: drive.
-    # C: is for the OS and has good read performance but awful write performance.
-    # D: has much better faster write performance (>20x faster than C:)
-    # We want to use the D: drive whenever we can. Trying to do "npm ci" on the C:
-    # drive has been observed to take over an hour!
+    needs: prepare-release
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
     steps:
-    # actions/checkout can only clone to paths in $GITHUB_WORKSPACE which is on the C: drive,
-    # so we have to clone to C: then copy to D: after. This repository itself isn't huge so
-    # this is plenty fast.
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        persist-credentials: false
-        path: repo
-    - name: "Move repository to D: drive"
-      run: |
-        Copy-Item -Path repo -Destination D:\repo -Recurse
-        Remove-Item -Path repo -Recurse -Force
-    - name: Install Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 22
-    - name: Setup bun ⚙️
-      uses: oven-sh/setup-bun@v2
-    # The repository being on D: means that node_modules IO will be fast, but npm still downloads
-    # packages to a temporary folder for caching which is on C: by default. We need to make sure
-    # npm uses the D: drive instead otherwise we still get bottlenecked by C:.
-    - name: "Configure Bun cache and prefix to D: drive"
-      run: |
-        echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
-        echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
-    - name: Install dependencies
-      working-directory: D:\repo
-      run: bun install --loglevel=info
-    - name: Fetch
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      working-directory: D:\repo
-      run: bun run fetch
-    - name: Compile
-      working-directory: D:\repo
-      run: bun run webpack:prod
-    - name: Package
-      working-directory: D:\repo
-      run: |
-        node release-automation/build.js --windows --microsoft-store --x64 --ia32 --arm64 --production
-        node release-automation/build.js --windows-portable --x64 --production
-        node release-automation/build.js --windows-legacy --ia32 --x64 --production
-    - name: Print file tree
-      working-directory: D:\repo
-      run: node scripts/print-file-tree.js dist
-    - name: Sign Windowsapplication
-      working-directory: D:\repo
-      run: deepsigntool\sign_windows.cmd
-    - name: Upload signed artifacts to GitHub Actions
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-signed
-        path: D:\repo\windows_signed\*.exe
-    - name: Upload signed artifacts to tag
-      uses: xresloader/upload-to-github-release@2bcae85344d41e21f7fc4c47fa2ed68223afdb49
-      with:
-        file: D:\repo\windows_signed\*.exe
-        draft: false
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+          path: repo
+
+      - name: "Move repository to D: drive"
+        run: |
+          Copy-Item -Path repo -Destination D:\repo -Recurse
+          Remove-Item -Path repo -Recurse -Force
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: "Configure Bun cache and prefix to D: drive"
+        run: |
+          echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
+          echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        working-directory: D:\repo
+        run: bun install --loglevel=info
+
+      - name: Fetch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: D:\repo
+        run: bun run fetch
+
+      - name: Compile
+        working-directory: D:\repo
+        run: bun run webpack:prod
+
+      - name: Package
+        working-directory: D:\repo
+        run: |
+          node release-automation/build.js --windows --microsoft-store --x64 --ia32 --arm64 --production
+          node release-automation/build.js --windows-portable --x64 --production
+          node release-automation/build.js --windows-legacy --ia32 --x64 --production
+
+      - name: Print file tree
+        working-directory: D:\repo
+        run: node scripts/print-file-tree.js dist
+
+      - name: Sign Windows application
+        working-directory: D:\repo
+        run: deepsigntool\sign_windows.cmd
+
+      - name: Upload signed artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-signed
+          path: |
+            D:\repo\windows_signed\*.exe
+            D:\repo\dist\*.appx
+
+      - name: Upload artifacts to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $files = @(
+            Get-ChildItem -Path 'D:\repo\windows_signed\*.exe' -File | Select-Object -ExpandProperty FullName
+            Get-ChildItem -Path 'D:\repo\dist\*.appx' -File | Select-Object -ExpandProperty FullName
+          ) | Where-Object { $_ }
+
+          if (-not $files) {
+            throw 'No Windows release assets were found to upload.'
+          }
+
+          gh release upload $env:RELEASE_TAG @files --clobber
