@@ -1,10 +1,10 @@
-name: Update Version
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing release tag to publish (vX.Y.Z)
+        description: Base release tag (vX.Y.Z) - will append -g<short-hash>
         required: true
         type: string
   push:
@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.release-tag.outputs.release_tag }}
+      base_tag: ${{ steps.release-tag.outputs.base_tag }}
+      short_hash: ${{ steps.release-tag.outputs.short_hash }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,47 +29,67 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Resolve release tag
+      - name: Resolve release tag with hash
         id: release-tag
         shell: bash
         run: |
           set -euo pipefail
-
+          
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            release_tag="${{ inputs.tag }}"
+            base_tag="${{ inputs.tag }}"
           else
-            release_tag="${{ github.ref_name }}"
+            base_tag="${{ github.ref_name }}"
           fi
-
-          if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release tag must match vX.Y.Z, got: $release_tag" >&2
+          
+          # 严格校验基础 tag 格式
+          if [[ ! "$base_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release base tag must match vX.Y.Z, got: $base_tag" >&2
             exit 1
           fi
-
+          
+          # 获取当前 commit 的 8 位短 hash
+          short_hash=$(git rev-parse --short=8 HEAD)
+          
+          # 最终带 hash 的 tag
+          release_tag="${base_tag}-g${short_hash}"
+          
+          echo "base_tag=$base_tag" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "short_hash=$short_hash" >> "$GITHUB_OUTPUT"
+          
+          echo "Base tag     : $base_tag"
+          echo "Short hash   : $short_hash"
+          echo "Final tag    : $release_tag"
 
-      - name: Verify tag exists
+      - name: Create and push tag with hash
+        env:
+          RELEASE_TAG: ${{ steps.release-tag.outputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
-          release_tag="${{ steps.release-tag.outputs.release_tag }}"
-          git fetch --force --tags origin
-          git rev-parse --verify "refs/tags/$release_tag" >/dev/null
+          if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists. Updating it."
+          fi
+          git tag -f "$RELEASE_TAG"
+          git push origin "$RELEASE_TAG" --force-with-lease
+          echo "Successfully created and pushed tag: $RELEASE_TAG"
 
       - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ steps.release-tag.outputs.release_tag }}
+          BASE_TAG: ${{ steps.release-tag.outputs.base_tag }}
+          SHORT_HASH: ${{ steps.release-tag.outputs.short_hash }}
         shell: bash
         run: |
           set -euo pipefail
-
+          
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" --title "$RELEASE_TAG"
+            gh release edit "$RELEASE_TAG" --title "${BASE_TAG} (g${SHORT_HASH})"
           else
             gh release create "$RELEASE_TAG" \
-              --title "$RELEASE_TAG" \
+              --title "${BASE_TAG} (g${SHORT_HASH})" \
               --generate-notes \
               --verify-tag
           fi
@@ -76,6 +99,44 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # x64
+          - name: debian-x64
+            arch: x64
+          - name: rpm-x64
+            arch: x64
+          - name: pacman-x64
+            arch: x64
+          - name: tarball-x64
+            arch: x64
+          - name: appimage-x64
+            arch: x64
+          - name: snap-x64
+            arch: x64
+
+          # arm64
+          - name: debian-arm64
+            arch: arm64
+          - name: rpm-arm64
+            arch: arm64
+          - name: pacman-arm64
+            arch: arm64
+          - name: tarball-arm64
+            arch: arm64
+          - name: appimage-arm64
+            arch: arm64
+
+          # armv7l
+          - name: debian-armv7l
+            arch: armv7l
+          - name: tarball-armv7l
+            arch: armv7l
+          - name: appimage-armv7l
+            arch: armv7l
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -84,7 +145,7 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Install Linux packaging dependencies
+      - name: Install packaging dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y strip-nondeterminism libarchive-tools
@@ -108,23 +169,34 @@ jobs:
       - name: Compile
         run: bun run webpack:prod
 
+      - name: Install snapcraft (only for snap)
+        if: contains(matrix.name, 'snap')
+        run: sudo snap install snapcraft --classic
+
       - name: Package
         run: |
-          node release-automation/build.js --debian --tarball --appimage --x64 --armv7l --arm64 --production
-          node release-automation/build.js --pacman --x64 --arm64 --production
+          if [ "${{ matrix.name }}" = "snap-x64" ]; then
+            node release-automation/build.js --snap --${{ matrix.arch }} --production
+          else
+            format=$(echo ${{ matrix.name }} | cut -d'-' -f1)
+            node release-automation/build.js --$format --${{ matrix.arch }} --production
+          fi
 
       - name: Print file tree
         run: node scripts/print-file-tree.js dist
 
+      - name: Validate build artifacts
+        run: |
+          if [ ! -d "dist" ] || [ -z "$(ls -A dist/ 2>/dev/null)" ]; then
+            echo "ERROR: No build artifacts found in dist/" >&2
+            exit 1
+          fi
+
       - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: linux
-          path: |
-            dist/*.deb
-            dist/*.tar.gz
-            dist/*.AppImage
-            dist/*.pkg.tar.zst
+          name: linux-${{ matrix.name }}
+          path: dist/*
 
       - name: Upload artifacts to release
         env:
@@ -133,18 +205,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release upload "$RELEASE_TAG" \
-            dist/*.deb \
-            dist/*.tar.gz \
-            dist/*.AppImage \
-            dist/*.pkg.tar.zst \
-            --clobber
+          gh release upload "$RELEASE_TAG" dist/* --clobber
 
   release-mac:
     needs: prepare-release
     runs-on: macos-latest
     env:
       RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: modern
+            args: --mac --universal
+          - name: legacy-10.13-10.14
+            args: --mac-legacy-10.13-10.14 --x64
+          - name: legacy-10.15
+            args: --mac-legacy-10.15 --x64
+          - name: legacy-11
+            args: --mac-legacy-11 --universal
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -173,17 +253,22 @@ jobs:
         run: bun run webpack:prod
 
       - name: Package
-        run: |
-          node release-automation/build.js --mac --universal
-          node release-automation/build.js --mac-legacy-10.13-10.14 --mac-legacy-10.15 --x64
+        run: node release-automation/build.js ${{ matrix.args }} --production
 
       - name: Print file tree
         run: node scripts/print-file-tree.js dist
 
+      - name: Validate build artifacts
+        run: |
+          if [ ! -d "dist" ] || [ -z "$(ls -A dist/ 2>/dev/null)" ]; then
+            echo "ERROR: No build artifacts found in dist/" >&2
+            exit 1
+          fi
+
       - name: Upload artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: mac
+          name: mac-${{ matrix.name }}
           path: dist/*.dmg
 
       - name: Upload artifacts to release
@@ -200,6 +285,32 @@ jobs:
     runs-on: windows-latest
     env:
       RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: nsis-x64
+            args: --windows --x64
+            files: "*.exe"
+          - name: nsis-ia32
+            args: --windows --ia32
+            files: "*.exe"
+          - name: nsis-arm64
+            args: --windows --arm64
+            files: "*.exe"
+          - name: appx-x64
+            args: --microsoft-store --x64
+            files: "*.appx"
+          - name: appx-ia32
+            args: --microsoft-store --ia32
+            files: "*.appx"
+          - name: appx-arm64
+            args: --microsoft-store --arm64
+            files: "*.appx"
+          - name: portable-x64
+            args: --windows-portable --x64
+            files: "*.exe"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -243,14 +354,20 @@ jobs:
 
       - name: Package
         working-directory: D:\repo
-        run: |
-          node release-automation/build.js --windows --microsoft-store --x64 --ia32 --arm64 --production
-          node release-automation/build.js --windows-portable --x64 --production
-          node release-automation/build.js --windows-legacy --ia32 --x64 --production
+        run: node release-automation/build.js ${{ matrix.args }} --production
 
       - name: Print file tree
         working-directory: D:\repo
         run: node scripts/print-file-tree.js dist
+
+      - name: Validate build artifacts
+        working-directory: D:\repo
+        shell: bash
+        run: |
+          if [ ! -d "dist" ] || [ -z "$(ls -A dist/ 2>/dev/null)" ]; then
+            echo "ERROR: No build artifacts found in dist/" >&2
+            exit 1
+          fi
 
       - name: Sign Windows application
         working-directory: D:\repo
@@ -259,7 +376,7 @@ jobs:
       - name: Upload signed artifacts to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
-          name: windows-signed
+          name: windows-${{ matrix.name }}-signed
           path: |
             D:\repo\windows_signed\*.exe
             D:\repo\dist\*.appx
@@ -275,9 +392,8 @@ jobs:
             Get-ChildItem -Path 'D:\repo\windows_signed\*.exe' -File | Select-Object -ExpandProperty FullName
             Get-ChildItem -Path 'D:\repo\dist\*.appx' -File | Select-Object -ExpandProperty FullName
           ) | Where-Object { $_ }
-
           if (-not $files) {
-            throw 'No Windows release assets were found to upload.'
+            Write-Host "No files found to upload in this matrix job. This might be expected if the matrix entry doesn't produce the files being looked for."
+          } else {
+            gh release upload $env:RELEASE_TAG @files --clobber
           }
-
-          gh release upload $env:RELEASE_TAG @files --clobber
