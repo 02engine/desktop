@@ -405,6 +405,7 @@ const run = async () => {
     '--windows-portable': buildWindowsPortable,
     '--windows-dir': buildWindowsDir,
     '--microsoft-store': buildMicrosoftStore,
+    '--appx': buildMicrosoftStore,
     '--mac': buildMac,
     '--mac-legacy-10.13-10.14': buildMacLegacy10131014,
     '--mac-legacy-10.15': buildMacLegacy1015,

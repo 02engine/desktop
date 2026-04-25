@@ -4,318 +4,129 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Base release tag (vX.Y.Z) - will append -g<short-hash>
+        description: "Base release tag (vX.Y.Z)"
         required: true
         type: string
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
-  prepare-release:
+  # --- Linux 构建部分 ---
+  build-linux:
     runs-on: ubuntu-latest
-    outputs:
-      release_tag: ${{ steps.release-tag.outputs.release_tag }}
-      base_tag: ${{ steps.release-tag.outputs.base_tag }}
-      short_hash: ${{ steps.release-tag.outputs.short_hash }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Resolve release tag with hash
-        id: release-tag
-        shell: bash
-        run: |
-          set -euo pipefail
-          
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            base_tag="${{ inputs.tag }}"
-          else
-            base_tag="${{ github.ref_name }}"
-          fi
-          
-          # 严格校验基础 tag 格式
-          if [[ ! "$base_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release base tag must match vX.Y.Z, got: $base_tag" >&2
-            exit 1
-          fi
-          
-          # 获取当前 commit 的 8 位短 hash
-          short_hash=$(git rev-parse --short=8 HEAD)
-          
-          # 最终带 hash 的 tag
-          release_tag="${base_tag}-g${short_hash}"
-          
-          echo "base_tag=$base_tag" >> "$GITHUB_OUTPUT"
-          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
-          echo "short_hash=$short_hash" >> "$GITHUB_OUTPUT"
-          
-          echo "Base tag     : $base_tag"
-          echo "Short hash   : $short_hash"
-          echo "Final tag    : $release_tag"
-
-      - name: Create and push tag with hash
-        env:
-          RELEASE_TAG: ${{ steps.release-tag.outputs.release_tag }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Tag $RELEASE_TAG already exists. Updating it."
-          fi
-          git tag -f "$RELEASE_TAG"
-          git push origin "$RELEASE_TAG" --force-with-lease
-          echo "Successfully created and pushed tag: $RELEASE_TAG"
-
-      - name: Create or update GitHub release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ steps.release-tag.outputs.release_tag }}
-          BASE_TAG: ${{ steps.release-tag.outputs.base_tag }}
-          SHORT_HASH: ${{ steps.release-tag.outputs.short_hash }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" --title "${BASE_TAG} (g${SHORT_HASH})"
-          else
-            gh release create "$RELEASE_TAG" \
-              --title "${BASE_TAG} (g${SHORT_HASH})" \
-              --generate-notes \
-              --verify-tag
-          fi
-
-  release-linux:
-    needs: prepare-release
-    runs-on: ubuntu-latest
-    env:
-      RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # x64
-          - name: debian-x64
-            arch: x64
-          - name: rpm-x64
-            arch: x64
-          - name: pacman-x64
-            arch: x64
-          - name: tarball-x64
-            arch: x64
-          - name: appimage-x64
-            arch: x64
-          - name: snap-x64
-            arch: x64
-
-          # arm64
-          - name: debian-arm64
-            arch: arm64
-          - name: rpm-arm64
-            arch: arm64
-          - name: pacman-arm64
-            arch: arm64
-          - name: tarball-arm64
-            arch: arm64
-          - name: appimage-arm64
-            arch: arm64
-
-          # armv7l
-          - name: debian-armv7l
-            arch: armv7l
-          - name: tarball-armv7l
-            arch: armv7l
-          - name: appimage-armv7l
-            arch: armv7l
+          - { name: debian-x64, arch: x64, format: debian }
+          - { name: pacman-x64, arch: x64, format: pacman }
+          - { name: tarball-x64, arch: x64, format: tarball }
+          - { name: appimage-x64, arch: x64, format: appimage }
+          - { name: debian-arm64, arch: arm64, format: debian }
+          - { name: pacman-arm64, arch: arm64, format: pacman }
+          - { name: tarball-arm64, arch: arm64, format: tarball }
+          - { name: appimage-arm64, arch: arm64, format: appimage }
+          - { name: debian-armv7l, arch: armv7l, format: debian }
+          - { name: tarball-armv7l, arch: armv7l, format: tarball }
+          - { name: appimage-armv7l, arch: armv7l, format: appimage }
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
           persist-credentials: false
 
-      - name: Install packaging dependencies
+      - name: Install Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y strip-nondeterminism libarchive-tools
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
 
-      - name: Install dependencies
-        run: bun install --loglevel=info
-
-      - name: Fetch
+      - run: bun install --loglevel=info
+      
+      - name: Fetch & Compile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
-
-      - name: Install snapcraft (only for snap)
-        if: contains(matrix.name, 'snap')
-        run: sudo snap install snapcraft --classic
+        run: |
+          bun run fetch
+          bun run webpack:prod
 
       - name: Package
-        run: |
-          if [ "${{ matrix.name }}" = "snap-x64" ]; then
-            node release-automation/build.js --snap --${{ matrix.arch }} --production
-          else
-            format=$(echo ${{ matrix.name }} | cut -d'-' -f1)
-            node release-automation/build.js --$format --${{ matrix.arch }} --production
-          fi
+        run: node release-automation/build.js --${{ matrix.format }} --${{ matrix.arch }} --production
 
-      - name: Print file tree
-        run: node scripts/print-file-tree.js dist
-
-      - name: Validate build artifacts
-        run: |
-          if [ ! -d "dist" ] || [ -z "$(ls -A dist/ 2>/dev/null)" ]; then
-            echo "ERROR: No build artifacts found in dist/" >&2
-            exit 1
-          fi
-
-      - name: Upload artifacts to GitHub Actions
+      - name: Upload to Actions
         uses: actions/upload-artifact@v4
         with:
           name: linux-${{ matrix.name }}
           path: dist/*
+          retention-days: 1
 
-      - name: Upload artifacts to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh release upload "$RELEASE_TAG" dist/* --clobber
-
-  release-mac:
-    needs: prepare-release
+  # --- macOS 构建部分 ---
+  build-mac:
     runs-on: macos-latest
-    env:
-      RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: modern
-            args: --mac --universal
-          - name: legacy-10.13-10.14
-            args: --mac-legacy-10.13-10.14 --x64
-          - name: legacy-10.15
-            args: --mac-legacy-10.15 --x64
-          - name: legacy-11
-            args: --mac-legacy-11 --universal
-
+          - { name: modern, args: "--mac --universal" }
+          - { name: legacy-10.13, args: "--mac-legacy-10.13-10.14 --x64" }
+          - { name: legacy-10.15, args: "--mac-legacy-10.15 --x64" }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
           persist-credentials: false
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
 
-      - name: Install dependencies
-        run: bun install --loglevel=info
+      - run: bun install --loglevel=info
 
-      - name: Fetch
+      - name: Fetch & Compile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun run fetch
-
-      - name: Compile
-        run: bun run webpack:prod
+        run: |
+          bun run fetch
+          bun run webpack:prod
 
       - name: Package
         run: node release-automation/build.js ${{ matrix.args }} --production
 
-      - name: Print file tree
-        run: node scripts/print-file-tree.js dist
-
-      - name: Validate build artifacts
-        run: |
-          if [ ! -d "dist" ] || [ -z "$(ls -A dist/ 2>/dev/null)" ]; then
-            echo "ERROR: No build artifacts found in dist/" >&2
-            exit 1
-          fi
-
-      - name: Upload artifacts to GitHub Actions
+      - name: Upload to Actions
         uses: actions/upload-artifact@v4
         with:
           name: mac-${{ matrix.name }}
           path: dist/*.dmg
+          retention-days: 1
 
-      - name: Upload artifacts to release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh release upload "$RELEASE_TAG" dist/*.dmg --clobber
-
-  release-windows:
-    needs: prepare-release
+  # --- Windows 构建部分 ---
+  build-windows:
     runs-on: windows-latest
-    env:
-      RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: nsis-x64
-            args: --windows --x64
-            files: "*.exe"
-          - name: nsis-ia32
-            args: --windows --ia32
-            files: "*.exe"
-          - name: nsis-arm64
-            args: --windows --arm64
-            files: "*.exe"
-          - name: appx-x64
-            args: --microsoft-store --x64
-            files: "*.appx"
-          - name: appx-ia32
-            args: --microsoft-store --ia32
-            files: "*.appx"
-          - name: appx-arm64
-            args: --microsoft-store --arm64
-            files: "*.appx"
-          - name: portable-x64
-            args: --windows-portable --x64
-            files: "*.exe"
+          - { name: nsis-x64, args: "--windows --x64" }
+          - { name: appx-x64, args: "--microsoft-store --appx --x64" }
+          - { name: portable-x64, args: "--windows-portable --x64" }
+          - { name: legacy-x64, args: "--windows-legacy --x64" }
+          - { name: nsis-arm64, args: "--windows --arm64" }
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
           submodules: recursive
           persist-credentials: false
           path: repo
@@ -324,76 +135,68 @@ jobs:
         run: |
           Copy-Item -Path repo -Destination D:\repo -Recurse
           Remove-Item -Path repo -Recurse -Force
+        shell: pwsh
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Setup bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
 
-      - name: "Configure Bun cache and prefix to D: drive"
+      - name: "Configure Bun cache"
         run: |
           echo "BUN_INSTALL_CACHE_DIR=D:\bun-cache" >> $GITHUB_ENV
           echo "BUN_INSTALL_GLOBAL_DIR=D:\bun-global" >> $GITHUB_ENV
 
-      - name: Install dependencies
+      - name: Install & Build
         working-directory: D:\repo
-        run: bun install --loglevel=info
-
-      - name: Fetch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        working-directory: D:\repo
-        run: bun run fetch
-
-      - name: Compile
-        working-directory: D:\repo
-        run: bun run webpack:prod
+        run: |
+          bun install --loglevel=info
+          bun run fetch
+          bun run webpack:prod
 
       - name: Package
         working-directory: D:\repo
         run: node release-automation/build.js ${{ matrix.args }} --production
 
-      - name: Print file tree
+      - name: Sign Windows
         working-directory: D:\repo
-        run: node scripts/print-file-tree.js dist
+        # 注意：这里假设 sign_windows.cmd 会处理 dist 里的文件
+        run: deepsigntool\sign_windows.cmd 
 
-      - name: Validate build artifacts
-        working-directory: D:\repo
-        shell: bash
-        run: |
-          if [ ! -d "dist" ] || [ -z "$(ls -A dist/ 2>/dev/null)" ]; then
-            echo "ERROR: No build artifacts found in dist/" >&2
-            exit 1
-          fi
-
-      - name: Sign Windows application
-        working-directory: D:\repo
-        run: deepsigntool\sign_windows.cmd
-
-      - name: Upload signed artifacts to GitHub Actions
+      - name: Upload to Actions
         uses: actions/upload-artifact@v4
         with:
-          name: windows-${{ matrix.name }}-signed
+          name: windows-${{ matrix.name }}
           path: |
-            D:\repo\windows_signed\*.exe
-            D:\repo\dist\*.appx
+            D:/repo/dist/*.exe
+            D:/repo/dist/*.appx
+            D:/repo/windows_signed/*.exe
+          retention-days: 1
 
-      - name: Upload artifacts to release
-        working-directory: D:\repo
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        shell: pwsh
+  # --- 统一发布阶段 ---
+  publish-release:
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-mac, build-windows]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./all-artifacts
+
+      - name: Flatten directory
         run: |
-          $files = @(
-            Get-ChildItem -Path 'D:\repo\windows_signed\*.exe' -File | Select-Object -ExpandProperty FullName
-            Get-ChildItem -Path 'D:\repo\dist\*.appx' -File | Select-Object -ExpandProperty FullName
-          ) | Where-Object { $_ }
-          if (-not $files) {
-            Write-Host "No files found to upload in this matrix job. This might be expected if the matrix entry doesn't produce the files being looked for."
-          } else {
-            gh release upload $env:RELEASE_TAG @files --clobber
-          }
+          mkdir ./release-files
+          find ./all-artifacts -type f \( -name "*.deb" -o -name "*.tar.gz" -o -name "*.AppImage" -o -name "*.pkg.tar.zst" -o -name "*.dmg" -o -name "*.exe" -o -name "*.appx" \) -exec cp {} ./release-files/ \;
+
+      - name: Upload to GitHub Release
+        uses: xresloader/upload-to-github-release@v1
+        with:
+          file: "release-files/*"
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          draft: false
+          overwrite: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
