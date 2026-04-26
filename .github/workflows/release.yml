@@ -15,24 +15,38 @@ permissions:
   contents: write
 
 jobs:
-  # --- Linux 构建部分 ---
   build-linux:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: debian-x64, arch: x64, format: debian }
-          - { name: pacman-x64, arch: x64, format: pacman }
-          - { name: tarball-x64, arch: x64, format: tarball }
-          - { name: appimage-x64, arch: x64, format: appimage }
-          - { name: debian-arm64, arch: arm64, format: debian }
-          - { name: pacman-arm64, arch: arm64, format: pacman }
-          - { name: tarball-arm64, arch: arm64, format: tarball }
-          - { name: appimage-arm64, arch: arm64, format: appimage }
-          - { name: debian-armv7l, arch: armv7l, format: debian }
-          - { name: tarball-armv7l, arch: armv7l, format: tarball }
-          - { name: appimage-armv7l, arch: armv7l, format: appimage }
+          # Debian
+          - { name: debian-x64,     arch: x64,     format: debian }
+          - { name: debian-arm64,   arch: arm64,   format: debian }
+          - { name: debian-armv7l,  arch: armv7l,  format: debian }
+
+          # RPM
+          - { name: rpm-x64,        arch: x64,     format: rpm }
+          - { name: rpm-arm64,      arch: arm64,   format: rpm }
+
+          # Pacman
+          - { name: pacman-x64,     arch: x64,     format: pacman }
+          - { name: pacman-arm64,   arch: arm64,   format: pacman }
+
+          # Tarball
+          - { name: tarball-x64,    arch: x64,     format: tarball }
+          - { name: tarball-arm64,  arch: arm64,   format: tarball }
+          - { name: tarball-armv7l, arch: armv7l,  format: tarball }
+
+          # AppImage
+          - { name: appimage-x64,   arch: x64,     format: appimage }
+          - { name: appimage-arm64, arch: arm64,   format: appimage }
+          - { name: appimage-armv7l,arch: armv7l,  format: appimage }
+
+          # Snap（主要 x64）
+          - { name: snap-x64,       arch: x64,     format: snap }
+          - { name: snap-armv7l,    arch: armv7l,  format: snap }
 
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +66,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - run: bun install --loglevel=info
-      
+
       - name: Fetch & Compile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -70,16 +84,17 @@ jobs:
           path: dist/*
           retention-days: 1
 
-  # --- macOS 构建部分 ---
   build-mac:
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: modern, args: "--mac --universal" }
-          - { name: legacy-10.13, args: "--mac-legacy-10.13-10.14 --x64" }
-          - { name: legacy-10.15, args: "--mac-legacy-10.15 --x64" }
+          - { name: modern,               args: "--mac --universal" }
+          - { name: legacy-10.13-10.14,   args: "--mac-legacy-10.13-10.14 --x64" }
+          - { name: legacy-10.15,         args: "--mac-legacy-10.15 --x64" }
+          - { name: legacy-11,            args: "--mac-legacy-11 --x64" }
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,18 +126,29 @@ jobs:
           path: dist/*.dmg
           retention-days: 1
 
-  # --- Windows 构建部分 ---
   build-windows:
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: nsis-x64, args: "--windows --x64" }
-          - { name: appx-x64, args: "--microsoft-store --appx --x64" }
-          - { name: portable-x64, args: "--windows-portable --x64" }
-          - { name: legacy-x64, args: "--windows-legacy --x64" }
-          - { name: nsis-arm64, args: "--windows --arm64" }
+          # 普通版
+          - { name: nsis-x64,      args: "--windows --x64" }
+          - { name: nsis-ia32,     args: "--windows --ia32" } 
+          - { name: nsis-arm64,    args: "--windows --arm64" }
+
+          # Portable
+          - { name: portable-x64,  args: "--windows-portable --x64" }
+          - { name: portable-ia32, args: "--windows-portable --ia32" } 
+
+          # Legacy
+          - { name: legacy-x64,    args: "--windows-legacy --x64" }
+          - { name: legacy-ia32,   args: "--windows-legacy --ia32" } 
+
+          # Microsoft Store
+          - { name: appx-x64,      args: "--microsoft-store --appx --x64" }
+          - { name: appx-arm64,    args: "--microsoft-store --appx --arm64" } 
+          - { name: appx-ia32,     args: "--microsoft-store --appx --ia32" }
 
     steps:
       - uses: actions/checkout@v4
@@ -163,8 +189,7 @@ jobs:
 
       - name: Sign Windows
         working-directory: D:\repo
-        # 注意：这里假设 sign_windows.cmd 会处理 dist 里的文件
-        run: deepsigntool\sign_windows.cmd 
+        run: deepsigntool\sign_windows.cmd
 
       - name: Upload to Actions
         uses: actions/upload-artifact@v4
@@ -188,8 +213,12 @@ jobs:
 
       - name: Flatten directory
         run: |
-          mkdir ./release-files
-          find ./all-artifacts -type f \( -name "*.deb" -o -name "*.tar.gz" -o -name "*.AppImage" -o -name "*.pkg.tar.zst" -o -name "*.dmg" -o -name "*.exe" -o -name "*.appx" \) -exec cp {} ./release-files/ \;
+          mkdir -p ./release-files
+          find ./all-artifacts -type f \( \
+            -name "*.deb" -o -name "*.rpm" -o -name "*.pkg.tar.zst" -o \
+            -name "*.tar.gz" -o -name "*.AppImage" -o -name "*.snap" -o \
+            -name "*.dmg" -o -name "*.exe" -o -name "*.appx" \
+          \) -exec cp {} ./release-files/ \;
 
       - name: Upload to GitHub Release
         uses: xresloader/upload-to-github-release@v1
