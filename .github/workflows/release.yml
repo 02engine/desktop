@@ -44,7 +44,7 @@ jobs:
           - { name: appimage-arm64, arch: arm64,   format: appimage }
           - { name: appimage-armv7l,arch: armv7l,  format: appimage }
 
-          # Snap（主要 x64）
+          # Snap
           - { name: snap-x64,       arch: x64,     format: snap }
           - { name: snap-armv7l,    arch: armv7l,  format: snap }
 
@@ -132,20 +132,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # 普通版
           - { name: nsis-x64,      args: "--windows --x64" }
           - { name: nsis-ia32,     args: "--windows --ia32" } 
           - { name: nsis-arm64,    args: "--windows --arm64" }
-
-          # Portable
           - { name: portable-x64,  args: "--windows-portable --x64" }
           - { name: portable-ia32, args: "--windows-portable --ia32" } 
-
-          # Legacy
           - { name: legacy-x64,    args: "--windows-legacy --x64" }
           - { name: legacy-ia32,   args: "--windows-legacy --ia32" } 
-
-          # Microsoft Store
           - { name: appx-x64,      args: "--microsoft-store --appx --x64" }
           - { name: appx-arm64,    args: "--microsoft-store --appx --arm64" } 
           - { name: appx-ia32,     args: "--microsoft-store --appx --ia32" }
@@ -201,7 +194,6 @@ jobs:
             D:/repo/windows_signed/*.exe
           retention-days: 1
 
-  # --- 统一发布阶段 ---
   publish-release:
     runs-on: ubuntu-latest
     needs: [build-linux, build-mac, build-windows]
@@ -229,3 +221,33 @@ jobs:
           overwrite: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-snap:
+    runs-on: ubuntu-latest
+    needs: [publish-release]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./all-artifacts
+
+      - name: Install Snapcraft
+        run: sudo snap install snapcraft --classic
+
+      - name: Publish Snaps to Store
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
+        run: |
+          # 查找所有下载下来的 .snap 文件
+          SNAP_FILES=$(find ./all-artifacts -name "*.snap")
+          
+          if [ -z "$SNAP_FILES" ]; then
+            echo "No .snap files found!"
+            exit 1
+          fi
+
+          # 循环发布每一个文件到 stable 通道
+          for FILE in $SNAP_FILES; do
+            echo "Uploading $FILE..."
+            snapcraft upload "$FILE" --release=stable
+          done
