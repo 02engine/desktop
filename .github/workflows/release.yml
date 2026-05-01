@@ -222,6 +222,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get latest release tag
+        uses: pozetroninc/github-action-get-latest-release@master
+        id: latest
+        with:
+          repository: ${{ github.repository }}
+          excludes: draft
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch Android
+        uses: peter-evans/repository-dispatch@v3
+        with:
+            token: ${{ secrets.ORG_DISPATCH_TOKEN }}          
+            repository: ${{ github.repository_owner }}/02engine-android 
+            event-type: publish-android                        
+            client-payload: '{"tag": "${{ steps.latest.outputs.release }}"}'
+
   publish-snap:
     runs-on: ubuntu-latest
     needs: [publish-release]
