@@ -1,0 +1,26 @@
+name: Get package-lock.json
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check Out
+      uses: actions/checkout@v4
+
+    - name: Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install dependencies
+      run: npm install --loglevel=info --package-lock-only
+
+    - name: Upload package-lock.json
+      uses: actions/upload-artifact@v7.0.1
+      with:
+        name: package-lock
+        path: package-lock.json
