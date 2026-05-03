@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=02Engine
+Exec=/opt/02Engine/02engine-desktop %U
+Terminal=false
+Type=Application
+Icon=org.ztengine.ZTEngine
+StartupWMClass=02engine-desktop
+Comment=02Engine is a faster, stronger, richer creative engine for the hardcore.
+MimeType=application/x.scratch.sb3;application/x.scratch.sb2;application/x.scratch.sb;
+Categories=Development;
+Keywords=scratch;

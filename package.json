@@ -8,7 +8,7 @@
     "name": "0.2Studio"
   },
   "scripts": {
-    "fetch": "node scripts/download-library-files.js && node scripts/download-packager.js && node scripts/prepare-extensions.js",
+    "fetch": "node scripts/download-library-files.js && node scripts/download-packager.js && node scripts/prepare-extensions.mjs",
     "webpack:compile": "webpack",
     "webpack:watch": "webpack --watch",
     "webpack:prod": "cross-env NODE_ENV=production webpack",
@@ -61,7 +61,7 @@
   "main": "./src-main/entrypoint.js",
   "tw_update": true,
   "build": {
-    "appId": "ZPTStudio.02Engine.desktop",
+    "appId": "org.ztengine.ZTEngine",
     "productName": "02Engine",
     "asar": false,
     "files": [

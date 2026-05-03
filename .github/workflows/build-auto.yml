@@ -30,7 +30,7 @@ jobs:
       run: bun install --loglevel=info
 
     - name: Prepare extensions
-      run: node scripts/prepare-extensions.js
+      run: node scripts/prepare-extensions.mjs
 
     - name: Compile
       run: sudo -E env "PATH=$PATH" bun run webpack:compile

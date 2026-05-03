@@ -72,7 +72,7 @@
 ### 文件下载脚本 (package.json scripts.fetch)
 - **download-library-files.js**: 下载 Scratch 库文件
 - **download-packager.js**: 下载打包工具
-- **prepare-extensions.js**: 准备扩展文件
+- **prepare-extensions.mjs**: 准备扩展文件
 
 ## 系统依赖
 
