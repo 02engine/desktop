@@ -187,11 +187,6 @@ class RichPresence {
   }
 
   isAvailable () {
-    // In the Mac App Store, our tmpdir is ~/Library/Containers/org.turbowarp.desktop/Data/tmp/
-    //    while the IPC file is /var/folders/.../.../T/discord-ipc-#
-    // In the Linux Snap Store, our tmpdir is /run/user/.../snap.turbowarp-desktop/
-    //    while the IPC file is /run/user/.../snap.discord/discord-ipc-#
-    // In both cases the platform sandbox should stop us from accessing the IPC file.
     return !(process.mas || getPlatform() === 'linux-snap');
   }
 
