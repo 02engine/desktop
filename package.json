@@ -37,7 +37,7 @@
     "electron": "^40.6.0",
     "electron-builder": "^26.3.5",
     "file-loader": "^6.2.0",
-    "less": "^4.2.0",
+    "less": "^3.13.1",
     "less-loader": "^5.0.0",
     "postcss": "^8.4.13",
     "postcss-import": "^14.0.0",
