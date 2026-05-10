@@ -61,7 +61,7 @@
   "main": "./src-main/entrypoint.js",
   "tw_update": true,
   "build": {
-    "appId": "org.ztengine.ZTEngine",
+    "appId": "org._02engine._02Engine",
     "productName": "02Engine",
     "asar": false,
     "files": [

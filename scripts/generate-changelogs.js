@@ -114,7 +114,7 @@ const generateMetainfo = (releases) => {
     xml += '    </release>\n';
   }
 
-  const path = pathUtil.join(__dirname, '../linux-files/org.ztengine.ZTEngine.metainfo.xml');
+  const path = pathUtil.join(__dirname, '../linux-files/org._02engine._02Engine.metainfo.xml');
   let source = fs.readFileSync(path, 'utf-8');
   source = source.replace(
     /<releases>[\s\S]*<\/releases>/m,

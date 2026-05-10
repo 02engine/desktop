@@ -12,7 +12,7 @@ LinuxTargetHelper.prototype.computeMimeTypeFiles = async function (...args) {
     const tempFile = await this.packager.getTempFile('.xml');
     console.log(`${packageJSON.name}: LinuxTargetHelper.prototype.computeMimeTypeFiles has been patched. mime.xml to be saved to ${tempFile}`);
 
-    const xmlPath = pathUtil.join(__dirname, '../linux-files/org.ztengine.ZTEngine.mime.xml');
+    const xmlPath = pathUtil.join(__dirname, '../linux-files/org._02engine._02Engine.mime.xml');
     const rawXml = await fsPromises.readFile(xmlPath, 'utf-8');
     const newXml = rawXml.replace(/org\.turbowarp\.TurboWarp/g, packageJSON.name);
 
