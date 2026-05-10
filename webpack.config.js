@@ -2,6 +2,8 @@ const path = require('path');
 const {DefinePlugin} = require('webpack');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
+const agentRoot = path.resolve(__dirname, 'node_modules/scratch-gui/src/addons/addons/02agent');
+
 const base = {
     mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
     devtool: process.env.NODE_ENV === 'production' ? false : 'cheap-source-map',
@@ -9,13 +11,9 @@ const base = {
     module: {
         rules: [
             {
-                // 1. 修改正则，使其匹配 .js, .jsx, .ts, .tsx
                 test: /\.(j|t)sx?$/,
-                // 2. 移除针对 node_modules 的默认忽略，或者确保包含 scratch-gui
-                // 如果你的项目里其他 node_modules 很大，可以使用 include 缩小范围
                 loader: 'babel-loader',
                 options: {
-                    // 3. 添加 @babel/preset-typescript
                     presets: [
                         '@babel/preset-env', 
                         '@babel/preset-react',
@@ -32,11 +30,25 @@ const base = {
                 }
             },
             {
+                test: /\.less$/,
+                use: [
+                    'style-loader',
+                    {
+                        loader: 'css-loader',
+                        options: {
+                            modules: {
+                                auto: true,
+                                localIdentName: '[name]_[local]_[hash:base64:5]',
+                            },
+                        }
+                    },
+                    'less-loader'
+                ]
+            },
+            {
                 test: /\.css$/,
                 use: [
-                    {
-                        loader: 'style-loader'
-                    },
+                    'style-loader',
                     {
                         loader: 'css-loader',
                         options: {
@@ -50,11 +62,7 @@ const base = {
                         loader: 'postcss-loader',
                         options: {
                             postcssOptions: {
-                                plugins: [
-                                    'postcss-import',
-                                    'postcss-simple-vars',
-                                    'autoprefixer'
-                                ]
+                                plugins: ['postcss-import', 'postcss-simple-vars', 'autoprefixer']
                             }
                         }
                     }
@@ -62,9 +70,17 @@ const base = {
             }
         ]
     },
-    // 4. 必须添加 resolve.extensions，否则 webpack 无法自动识别 .tsx 引用
     resolve: {
-        extensions: ['.js', '.jsx', '.ts', '.tsx']
+        extensions: ['.js', '.jsx', '.ts', '.tsx'],
+        alias: {
+            'assets': path.resolve(agentRoot, 'assets'),
+            'components': path.resolve(agentRoot, 'components'),
+            'hooks': path.resolve(agentRoot, 'hooks'),
+            'utils': path.resolve(agentRoot, 'utils'),
+            'ui': path.resolve(agentRoot, 'ui'),
+            'scratch-gui$': path.resolve(__dirname, 'node_modules/scratch-gui/src/index.js'),
+            'scratch-render-fonts$': path.resolve(__dirname, 'node_modules/scratch-gui/src/lib/tw-scratch-render-fonts'),
+        }
     }
 }
 
@@ -101,16 +117,8 @@ module.exports = [
                     }
                 ]
             })
-        ],
-        resolve: {
-            ...base.resolve, // 保留通用的 extensions
-            alias: {
-                'scratch-gui$': path.resolve(__dirname, 'node_modules/scratch-gui/src/index.js'),
-                'scratch-render-fonts$': path.resolve(__dirname, 'node_modules/scratch-gui/src/lib/tw-scratch-render-fonts'),
-            }
-        }
+        ]
     },
-
     {
         ...base,
         output: {
