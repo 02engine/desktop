@@ -16,6 +16,7 @@
     "electron:package:dir": "electron-builder --dir"
   },
   "dependencies": {
+    "@babel/preset-typescript": "^7.28.5",
     "semver": "^7.7.2",
     "ws": "^8.14.0"
   },

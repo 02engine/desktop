@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=02Engine
-Exec=/opt/02Engine/02engine-desktop %U
+Exec=02engine-desktop %U
 Terminal=false
 Type=Application
 Icon=org._02engine._02Engine

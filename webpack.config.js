@@ -9,10 +9,18 @@ const base = {
     module: {
         rules: [
             {
-                test: /\.jsx?$/,
+                // 1. 修改正则，使其匹配 .js, .jsx, .ts, .tsx
+                test: /\.(j|t)sx?$/,
+                // 2. 移除针对 node_modules 的默认忽略，或者确保包含 scratch-gui
+                // 如果你的项目里其他 node_modules 很大，可以使用 include 缩小范围
                 loader: 'babel-loader',
                 options: {
-                    presets: ['@babel/preset-env', '@babel/preset-react']
+                    // 3. 添加 @babel/preset-typescript
+                    presets: [
+                        '@babel/preset-env', 
+                        '@babel/preset-react',
+                        '@babel/preset-typescript'
+                    ]
                 }
             },
             {
@@ -53,6 +61,10 @@ const base = {
                 ]
             }
         ]
+    },
+    // 4. 必须添加 resolve.extensions，否则 webpack 无法自动识别 .tsx 引用
+    resolve: {
+        extensions: ['.js', '.jsx', '.ts', '.tsx']
     }
 }
 
@@ -91,6 +103,7 @@ module.exports = [
             })
         ],
         resolve: {
+            ...base.resolve, // 保留通用的 extensions
             alias: {
                 'scratch-gui$': path.resolve(__dirname, 'node_modules/scratch-gui/src/index.js'),
                 'scratch-render-fonts$': path.resolve(__dirname, 'node_modules/scratch-gui/src/lib/tw-scratch-render-fonts'),
