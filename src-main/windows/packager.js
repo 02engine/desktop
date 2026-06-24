@@ -90,13 +90,6 @@ class PackagerWindow extends AbstractWindow {
   }
 
   onBeforeRequest (details, callback) {
-    const parsed = new URL(details.url);
-    if (parsed.origin === 'https://extensions.turbowarp.org') {
-      return callback({
-        redirectURL: `tw-extensions://./${parsed.pathname}`
-      });
-    }
-
     return super.onBeforeRequest(details, callback);
   }
 
