@@ -116,8 +116,20 @@ const recursivelySetFileTimes = (directory, date) => {
 };
 
 const afterPack = async (context) => {
-  await flipFuses(context);
   recursivelySetFileTimes(context.appOutDir, sourceDateEpoch);
+
+  if (context.electronPlatformName === 'darwin') {
+    const appPath = pathUtil.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
+    console.log(`Applying ad-hoc code signature: ${appPath}`);
+
+    const signResult = childProcess.spawnSync('codesign', ['--force', '--deep', '--sign', '-', appPath], {
+      stdio: 'inherit'
+    });
+
+    if (signResult.status !== 0) {
+      throw new Error(`codesign failed with status ${signResult.status}`);
+    }
+  }
 };
 
 const afterPackForUniversalMac = async (context) => {
@@ -125,6 +137,17 @@ const afterPackForUniversalMac = async (context) => {
     await flipFuses(context);
   }
   recursivelySetFileTimes(context.appOutDir, sourceDateEpoch);
+
+  const appPath = pathUtil.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
+  console.log(`Applying ad-hoc code signature: ${appPath}`);
+
+  const signResult = childProcess.spawnSync('codesign', ['--force', '--deep', '--sign', '-', appPath], {
+    stdio: 'inherit'
+  });
+
+  if (signResult.status !== 0) {
+    throw new Error(`codesign failed with status ${signResult.status}`);
+  }
 };
 
 const afterSign = async (context) => {
