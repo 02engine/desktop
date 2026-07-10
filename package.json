@@ -40,7 +40,7 @@
     "less": "^3.13.1",
     "less-loader": "^5.0.0",
     "postcss": "^8.4.13",
-    "postcss-import": "^14.0.0",
+    "postcss-import": "^16.1.1",
     "postcss-loader": "^4.2.0",
     "postcss-simple-vars": "^6.0.3",
     "scratch-gui": "github:02engine/scratch-gui#main",
